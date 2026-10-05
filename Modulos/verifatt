@@ -1,16 +1,40 @@
 #!/bin/bash
+#====================================================
+# OVER SSH PLUS - VERIFICADOR DE ATUALIZAÇÃO GITHUB
+#====================================================
 clear
 REPO_CONFIG="/etc/SSHPlus/repo.conf"
-DEFAULT_REPO="https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master"
+DEFAULT_REPO_MASTER="https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master"
+DEFAULT_REPO_MAIN="https://raw.githubusercontent.com/koquebr/OverSSH-Plus/main"
+
+REPO_RAW=""
 [[ -f "$REPO_CONFIG" ]] && REPO_RAW=$(cat "$REPO_CONFIG" 2>/dev/null | tr -d '\r\n')
-[[ -z "$REPO_RAW" ]] && REPO_RAW="$DEFAULT_REPO"
+[[ -z "$REPO_RAW" ]] && REPO_RAW="$DEFAULT_REPO_MASTER"
 
-rm -f /home/versao /tmp/att >/dev/null 2>&1
-curl -sSL --connect-timeout 5 "${REPO_RAW}/Install/versao" -o /home/versao >/dev/null 2>&1 || wget -q -O /home/versao "${REPO_RAW}/Install/versao" >/dev/null 2>&1
+rm -f /tmp/att /tmp/versao_remote >/dev/null 2>&1
 
-if [[ -s "/home/versao" ]]; then
-    vrs1=$(head -n1 /bin/versao 2>/dev/null | grep -o -E '[0-9]+' | head -n1)
-    vrs2=$(head -n1 /home/versao 2>/dev/null | grep -o -E '[0-9]+' | head -n1)
-    [[ -n "$vrs2" && "$vrs1" != "$vrs2" ]] && mv /home/versao /tmp/att
+# Tenta baixar do branch configurado, master ou main
+curl -sSL --connect-timeout 5 "${REPO_RAW}/Install/versao" -o /tmp/versao_remote >/dev/null 2>&1
+if [[ ! -s /tmp/versao_remote ]]; then
+    curl -sSL --connect-timeout 5 "${DEFAULT_REPO_MAIN}/Install/versao" -o /tmp/versao_remote >/dev/null 2>&1
+fi
+if [[ ! -s /tmp/versao_remote ]]; then
+    wget -q -T 5 -O /tmp/versao_remote "${REPO_RAW}/Install/versao" >/dev/null 2>&1
 fi
 
+if [[ -s "/tmp/versao_remote" ]]; then
+    vrs_local=$(head -n1 /bin/versao 2>/dev/null | tr -cd '0-9.')
+    vrs_remota=$(head -n1 /tmp/versao_remote 2>/dev/null | tr -cd '0-9.')
+
+    [[ -z "$vrs_local" ]] && vrs_local="0.0.0.0"
+    [[ -z "$vrs_remota" ]] && vrs_remota="0.0.0.0"
+
+    # Comparacao de versao usando sort -V
+    if [[ "$vrs_local" != "$vrs_remota" ]]; then
+        maior=$(printf "%s\n%s\n" "$vrs_local" "$vrs_remota" | sort -V | tail -n1)
+        if [[ "$maior" == "$vrs_remota" && "$vrs_local" != "$vrs_remota" ]]; then
+            cp -f /tmp/versao_remote /tmp/att
+        fi
+    fi
+fi
+rm -f /tmp/versao_remote >/dev/null 2>&1

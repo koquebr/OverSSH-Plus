@@ -1,17 +1,119 @@
 #!/bin/bash
-#kiritossh
-fun_online() {
-    _ons=$(ps -x | grep sshd | grep -v root | grep priv | wc -l)
-    [[ -e /etc/openvpn/openvpn-status.log ]] && _onop=$(grep -c "10.8.0" /etc/openvpn/openvpn-status.log) || _onop="0"
-    [[ -e /etc/default/dropbear ]] && _drp=$(ps aux | grep dropbear | grep -v grep | wc -l) _ondrp=$(($_drp - 1)) || _ondrp="0"
-    _onli=$(($_ons + $_onop + $_ondrp))
-    _onlin=$(printf '%-5s' "$_onli")
-    CURRENT_ONLINES="$(echo -e "${_onlin}" | sed -e 's/[[:space:]]*$//')"
-    echo "{\"onlines\":\"$CURRENT_ONLINES\",\"limite\":\"1500\"}" > /var/www/html/server/online_app
-    echo $CURRENT_ONLINES  > /var/www/html/server/online
+#====================================================
+# OVER SSH PLUS - GERENCIADOR ONLINE APP (PAINEL WEB)
+#====================================================
+clear
+
+C_RESET="\033[0m"
+C_CYAN="\033[1;36m"
+C_GREEN="\033[1;32m"
+C_YELLOW="\033[1;33m"
+C_RED="\033[1;31m"
+C_WHITE="\033[1;37m"
+
+fun_bar() {
+    comando[0]="$1"
+    comando[1]="$2"
+    (
+        [[ -e $HOME/fim ]] && rm -f $HOME/fim
+        ${comando[0]} >/dev/null 2>&1
+        ${comando[1]} >/dev/null 2>&1
+        touch $HOME/fim
+    ) >/dev/null 2>&1 &
+    tput civis
+    echo -ne "   ${C_YELLOW}AGUARDE ${C_WHITE}- ${C_CYAN}["
+    while true; do
+        for ((i = 0; i < 18; i++)); do
+            echo -ne "${C_GREEN}#"
+            sleep 0.06s
+        done
+        [[ -e $HOME/fim ]] && rm -f $HOME/fim && break
+        echo -e "${C_CYAN}]"
+        sleep 1s
+        tput cuu1
+        tput dl1
+        echo -ne "   ${C_YELLOW}AGUARDE ${C_WHITE}- ${C_CYAN}["
+    done
+    echo -e "${C_CYAN}]${C_WHITE} - ${C_GREEN}OK !${C_RESET}"
+    tput cnorm
 }
+
+start_app() {
+    clear
+    mkdir -p /var/www/html/server >/dev/null 2>&1
+    chmod -R 755 /var/www/html >/dev/null 2>&1
+
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}           ATIVAR SINCRONIZAÇÃO ONLINE APP          ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+
+    fun_start_proc() {
+        pkill -f "onlineapp_daemon" >/dev/null 2>&1
+        screen -r -S "onlineapp" -X quit >/dev/null 2>&1
+        screen -wipe >/dev/null 2>&1
+        sleep 1
+        screen -dmS onlineapp bash -c 'while true; do
+            _ons=$(ps -x 2>/dev/null | grep sshd | grep -v root | grep priv | wc -l)
+            [[ -e /etc/openvpn/openvpn-status.log ]] && _onop=$(grep -c "10.8.0" /etc/openvpn/openvpn-status.log 2>/dev/null) || _onop="0"
+            _drp=$(ps aux 2>/dev/null | grep dropbear | grep -v "dropbear -p" | grep -v grep | wc -l)
+            _onli=$((_ons + _onop + _drp))
+            mkdir -p /var/www/html/server 2>/dev/null
+            echo "{\"onlines\":\"$_onli\",\"limite\":\"1500\"}" > /var/www/html/server/online_app 2>/dev/null
+            echo "$_onli" > /var/www/html/server/online 2>/dev/null
+            sleep 10s
+        done'
+        
+        sed -i '/onlineapp/d' /etc/autostart 2>/dev/null
+        echo "pgrep -f onlineapp >/dev/null || screen -dmS onlineapp bash -c 'while true; do _ons=\$(ps -x 2>/dev/null | grep sshd | grep -v root | grep priv | wc -l); _drp=\$(ps aux 2>/dev/null | grep dropbear | grep -v \"dropbear -p\" | grep -v grep | wc -l); _onli=\$((_ons + _drp)); mkdir -p /var/www/html/server 2>/dev/null; echo \"{\\\"onlines\\\":\\\"\$item\\\",\\\"limite\\\":\\\"1500\\\"}\" > /var/www/html/server/online_app 2>/dev/null; echo \"\$_onli\" > /var/www/html/server/online 2>/dev/null; sleep 10s; done'" >> /etc/autostart
+    }
+
+    echo -e "${C_CYAN}[+] Iniciando sincronizador de contagem de onlines em JSON/Web...${C_RESET}"
+    fun_bar 'fun_start_proc'
+
+    echo -e "\n${C_GREEN}[✓] SINCRONIZAÇÃO ONLINE APP ATIVADA!${C_RESET}"
+    echo -e "${C_WHITE}Dados disponibilizados em /var/www/html/server/online_app${C_RESET}\n"
+    sleep 2s
+}
+
+stop_app() {
+    clear
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_RED}           DESATIVAR SINCRONIZAÇÃO ONLINE APP       ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+
+    fun_stop_proc() {
+        pkill -f "onlineapp" >/dev/null 2>&1
+        screen -r -S "onlineapp" -X quit >/dev/null 2>&1
+        screen -wipe >/dev/null 2>&1
+        sed -i '/onlineapp/d' /etc/autostart 2>/dev/null
+    }
+
+    echo -e "${C_YELLOW}[+] Parando serviço...${C_RESET}"
+    fun_bar 'fun_stop_proc'
+
+    echo -e "\n${C_RED}[✓] SINCRONIZAÇÃO ONLINE APP DESATIVADA!${C_RESET}\n"
+    sleep 2s
+}
+
 while true; do
-    echo 'verificando...'
-	fun_online > /dev/null 2>&1
-	sleep 15s
+    clear
+    status_app=$(pgrep -f "onlineapp" >/dev/null && echo -e "${C_GREEN}● ATIVADO [ON]${C_RESET}" || echo -e "${C_RED}○ DESATIVADO [OFF]${C_RESET}")
+
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}       GERENCIADOR ONLINE APP (INTEGRAÇÃO WEB)      ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "  ${C_WHITE}Status:${C_RESET} $status_app\n"
+    echo -e "  ${C_CYAN}[01]${C_RESET} ${C_WHITE}•${C_RESET} ${C_GREEN}ATIVAR SINCRONIZAÇÃO ONLINE APP${C_RESET}"
+    echo -e "  ${C_CYAN}[02]${C_RESET} ${C_WHITE}•${C_RESET} ${C_RED}DESATIVAR SINCRONIZAÇÃO ONLINE APP${C_RESET}"
+    echo -e "  ${C_CYAN}[00]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}VOLTAR AO MENU PRINCIPAL${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -ne "${C_GREEN}Opção: ${C_WHITE}"
+    read -r opcapp
+
+    case $opcapp in
+        1|01) start_app ;;
+        2|02) stop_app ;;
+        0|00) menu; exit 0 ;;
+        *) echo -e "\n${C_RED}Opção inválida!${C_RESET}"; sleep 1s ;;
+    esac
 done

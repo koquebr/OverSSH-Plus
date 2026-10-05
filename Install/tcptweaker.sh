@@ -80,23 +80,25 @@ net.core.wmem_max = 33554432
 net.core.rmem_default = 1048576
 net.core.wmem_default = 1048576
 net.core.optmem_max = 2048576
-net.core.netdev_max_backlog = 50000
+net.core.netdev_max_backlog = 65536
 net.ipv4.tcp_rmem = 4096 87380 33554432
 net.ipv4.tcp_wmem = 4096 65536 33554432
-net.ipv4.tcp_max_syn_backlog = 8192
+net.ipv4.tcp_max_syn_backlog = 16384
 net.ipv4.tcp_max_tw_buckets = 2000000
 net.ipv4.tcp_tw_reuse = 1
 net.ipv4.tcp_fin_timeout = 15
 net.ipv4.ip_local_port_range = 1024 65535
+fs.file-max = 2097152
 #END_SSHPLUS_TCP_BBR
 EOF
 
     sysctl -p /etc/sysctl.conf >/dev/null 2>&1
 
-    echo -e "${C_GREEN}[✓] Google BBR e Otimizações de Rede ATIVADOS com sucesso!${C_RESET}"
+    echo -e "\n${C_GREEN}[✓] Google BBR e Otimizações de Rede ATIVADOS com sucesso!${C_RESET}"
     echo -e "${C_WHITE}Congestion Control: ${C_YELLOW}$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)${C_RESET}"
     echo -e "${C_WHITE}Queue Discipline:    ${C_YELLOW}$(sysctl -n net.core.default_qdisc 2>/dev/null)${C_RESET}\n"
     sleep 2s
 else
-    echo -e "\n${C_RED}[!] Operação cancelada pelo usuário.${C_RESET}\n"
+    echo -e "\n${C_RED}[!] Instalação cancelada pelo usuário.${C_RESET}\n"
+    sleep 1s
 fi

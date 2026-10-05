@@ -1,0 +1,130 @@
+#!/bin/bash
+#====================================================
+# OVER SSH PLUS - GERENCIADOR BADVPN UDPGW (JOGOS & VOIP)
+#====================================================
+clear
+
+C_RESET="\033[0m"
+C_CYAN="\033[1;36m"
+C_GREEN="\033[1;32m"
+C_YELLOW="\033[1;33m"
+C_RED="\033[1;31m"
+C_WHITE="\033[1;37m"
+
+fun_bar() {
+    comando[0]="$1"
+    comando[1]="$2"
+    (
+        [[ -e $HOME/fim ]] && rm -f $HOME/fim
+        ${comando[0]} >/dev/null 2>&1
+        ${comando[1]} >/dev/null 2>&1
+        touch $HOME/fim
+    ) >/dev/null 2>&1 &
+    tput civis
+    echo -ne "   ${C_YELLOW}AGUARDE ${C_WHITE}- ${C_CYAN}["
+    while true; do
+        for ((i = 0; i < 18; i++)); do
+            echo -ne "${C_GREEN}#"
+            sleep 0.06s
+        done
+        [[ -e $HOME/fim ]] && rm -f $HOME/fim && break
+        echo -e "${C_CYAN}]"
+        sleep 1s
+        tput cuu1
+        tput dl1
+        echo -ne "   ${C_YELLOW}AGUARDE ${C_WHITE}- ${C_CYAN}["
+    done
+    echo -e "${C_CYAN}]${C_WHITE} - ${C_GREEN}OK !${C_RESET}"
+    tput cnorm
+}
+
+verif_badvpn_bin() {
+    if [[ ! -x "/bin/badvpn-udpgw" ]]; then
+        if [[ -f "$HOME/SSHPLUS-master/Install/badvpn-udpgw" ]]; then
+            cp -f "$HOME/SSHPLUS-master/Install/badvpn-udpgw" /bin/badvpn-udpgw
+            chmod +x /bin/badvpn-udpgw
+        elif [[ -f "/usr/local/lib/badvpn-udpgw" ]]; then
+            cp -f "/usr/local/lib/badvpn-udpgw" /bin/badvpn-udpgw
+            chmod +x /bin/badvpn-udpgw
+        fi
+    fi
+}
+
+start_badvpn() {
+    clear
+    verif_badvpn_bin
+    
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}             ATIVAR BADVPN UDPGW (PORTA 7300)       ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+    
+    echo -ne "${C_GREEN}Qual porta UDPGW deseja utilizar? [7300]: ${C_WHITE}"
+    read -e -i 7300 udpport
+    [[ -z "$udpport" ]] && udpport=7300
+
+    fun_start_proc() {
+        pkill -f "badvpn-udpgw.*$udpport" >/dev/null 2>&1
+        screen -r -S "udpvpn" -X quit >/dev/null 2>&1
+        screen -wipe >/dev/null 2>&1
+        sleep 1
+        screen -dmS udpvpn /bin/badvpn-udpgw --listen-addr 127.0.0.1:$udpport --max-clients 1000 --max-connections-for-client 10 --client-socket-sndbuf 10000
+        
+        sed -i '/badvpn-udpgw/d' /etc/autostart 2>/dev/null
+        sed -i '/udpvpn/d' /etc/autostart 2>/dev/null
+        echo "screen -dmS udpvpn /bin/badvpn-udpgw --listen-addr 127.0.0.1:$udpport --max-clients 1000 --max-connections-for-client 10 --client-socket-sndbuf 10000" >> /etc/autostart
+    }
+
+    echo -e "\n${C_CYAN}[+] Iniciando BadVPN UDPGW na porta $udpport...${C_RESET}"
+    fun_bar 'fun_start_proc'
+
+    echo -e "\n${C_GREEN}[✓] BADVPN UDPGW ATIVADO COM SUCESSO NA PORTA $udpport!${C_RESET}"
+    echo -e "${C_WHITE}Chamadas WhatsApp/VoIP e Jogos Online (Free Fire/PUBG) liberados.${C_RESET}\n"
+    sleep 2s
+}
+
+stop_badvpn() {
+    clear
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_RED}             DESATIVAR BADVPN UDPGW                 ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+
+    fun_stop_proc() {
+        pkill -f "badvpn-udpgw" >/dev/null 2>&1
+        screen -r -S "udpvpn" -X quit >/dev/null 2>&1
+        screen -wipe >/dev/null 2>&1
+        sed -i '/badvpn-udpgw/d' /etc/autostart 2>/dev/null
+        sed -i '/udpvpn/d' /etc/autostart 2>/dev/null
+    }
+
+    echo -e "${C_YELLOW}[+] Parando processos do BadVPN...${C_RESET}"
+    fun_bar 'fun_stop_proc'
+
+    echo -e "\n${C_RED}[✓] BADVPN UDPGW DESATIVADO COM SUCESSO!${C_RESET}\n"
+    sleep 2s
+}
+
+while true; do
+    clear
+    status_bad=$(pgrep -f "badvpn-udpgw" >/dev/null && echo -e "${C_GREEN}● ATIVADO [ON]${C_RESET}" || echo -e "${C_RED}○ DESATIVADO [OFF]${C_RESET}")
+    porta_bad=$(ps aux | grep badvpn-udpgw | grep -v grep | grep -o -- '--listen-addr [^ ]*' | cut -d: -f2 | xargs || echo "7300")
+    [[ -z "$porta_bad" ]] && porta_bad="7300"
+
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}         GERENCIADOR BADVPN UDPGW (JOGOS / VOIP)    ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "  ${C_WHITE}Status:${C_RESET} $status_bad"
+    echo -e "  ${C_WHITE}Porta em Uso:${C_RESET} ${C_YELLOW}${porta_bad}${C_RESET}\n"
+    echo -e "  ${C_CYAN}[01]${C_RESET} ${C_WHITE}•${C_RESET} ${C_GREEN}ATIVAR / REINICIAR BADVPN${C_RESET}"
+    echo -e "  ${C_CYAN}[02]${C_RESET} ${C_WHITE}•${C_RESET} ${C_RED}DESATIVAR BADVPN${C_RESET}"
+    echo -e "  ${C_CYAN}[00]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}VOLTAR AO MENU PRINCIPAL${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -ne "${C_GREEN}Opção: ${C_WHITE}"
+    read -r opcbad
+
+    case $opcbad in
+        1|01) start_badvpn ;;
+        2|02) stop_badvpn ;;
+        0|00) menu; exit 0 ;;
+        *) echo -e "\n${C_RED}Opção inválida!${C_RESET}"; sleep 1s ;;
+    esac
+done

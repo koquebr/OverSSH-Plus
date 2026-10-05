@@ -38,10 +38,11 @@ class Server(Thread):
     def run(self):
         self.soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.soc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.soc.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.soc.settimeout(2)
         try:
             self.soc.bind((self.host, self.port))
-            self.soc.listen(128)
+            self.soc.listen(256)
             self.running = True
         except Exception as e:
             print(f"[!] Erro ao iniciar na porta {self.port}: {e}")
@@ -52,6 +53,7 @@ class Server(Thread):
                 try:
                     c, addr = self.soc.accept()
                     c.setblocking(True)
+                    c.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                     conn = ConnectionHandler(c, self, addr)
                     conn.daemon = True
                     conn.start()
@@ -162,6 +164,7 @@ class ConnectionHandler(Thread):
 
         addr_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)[0]
         self.target = socket.socket(addr_info[0], addr_info[1], addr_info[2])
+        self.target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.target.settimeout(10)
         self.target.connect(addr_info[4])
         self.target.settimeout(None)
@@ -223,4 +226,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

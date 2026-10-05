@@ -1,7 +1,9 @@
-VERSAO: 38
+VERSAO: 0.0.0.4
 
-ADICIONADO GERENCIADOR V2RAY
-
-@OMentalista
-
---[RECUSE IMITAÇŌES]--
+[+] Novo Menu Moderno e Totalmente Organizado por Categorias
+[+] Atualizador Inteligente Integrado ao GitHub (Branchs Main e Master)
+[+] Reconhecimento de Versões Semânticas (0.0.0.x) e Integridade de Arquivos
+[+] Otimização Extrema de Rede: Google BBR, FQ Scheduler e Buffers TCP 64MB
+[+] Proxies WS, SOCKS e OpenVPN com TCP_NODELAY (Menor Ping e Maior Estabilidade)
+[+] Compatibilidade com Ubuntu 20.04/22.04/24.04 e Debian 10/11/12
+[+] Preservação Total de Usuários (usuarios.db), Certificados e Portas em Atualizações

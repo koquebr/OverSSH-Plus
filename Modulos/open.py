@@ -35,10 +35,11 @@ class Server(Thread):
     def run(self):
         self.soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.soc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.soc.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.soc.settimeout(2)
         try:
             self.soc.bind((self.host, self.port))
-            self.soc.listen(128)
+            self.soc.listen(256)
             self.running = True
         except Exception as e:
             print(f"[!] Erro ao iniciar OpenVPN Proxy na porta {self.port}: {e}")
@@ -49,6 +50,7 @@ class Server(Thread):
                 try:
                     c, addr = self.soc.accept()
                     c.setblocking(True)
+                    c.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                     conn = ConnectionHandler(c, self, addr)
                     conn.daemon = True
                     conn.start()
@@ -121,9 +123,15 @@ class ConnectionHandler(Thread):
                 return
 
             header_str = data.decode('utf-8', errors='ignore')
+
             host_port = self.find_header(header_str, 'X-Real-Host')
             if not host_port:
                 host_port = DEFAULT_HOST
+
+            passwd = self.find_header(header_str, 'X-Pass')
+            if PASS and passwd != PASS:
+                self.client.sendall(b"HTTP/1.1 400 WrongPass!\r\n\r\n")
+                return
 
             self.connect_target(host_port)
             self.client.sendall(RESPONSE)
@@ -152,6 +160,7 @@ class ConnectionHandler(Thread):
 
         addr_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)[0]
         self.target = socket.socket(addr_info[0], addr_info[1], addr_info[2])
+        self.target.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.target.settimeout(10)
         self.target.connect(addr_info[4])
         self.target.settimeout(None)
@@ -184,7 +193,7 @@ class ConnectionHandler(Thread):
 
 
 def main():
-    print(f"\033[1;32m[✓] INICIANDO PROXY OPENVPN PYTHON 3 NA PORTA {PORT}...\033[0m")
+    print(f"\033[1;32m[✓] INICIANDO OPENVPN PROXY WEBSOCKET NA PORTA {PORT}...\033[0m")
     server = Server(IP, PORT)
     server.daemon = True
     server.start()
@@ -193,7 +202,7 @@ def main():
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nParando Proxy OpenVPN...")
+        print("\nParando OpenVPN Proxy...")
         server.close()
 
 
