@@ -1,0 +1,16 @@
+#!/bin/bash
+clear
+REPO_CONFIG="/etc/SSHPlus/repo.conf"
+DEFAULT_REPO="https://raw.githubusercontent.com/koquebr/SSHPLUS/master"
+[[ -f "$REPO_CONFIG" ]] && REPO_RAW=$(cat "$REPO_CONFIG" 2>/dev/null | tr -d '\r\n')
+[[ -z "$REPO_RAW" ]] && REPO_RAW="$DEFAULT_REPO"
+
+rm -f /home/versao /tmp/att >/dev/null 2>&1
+curl -sSL --connect-timeout 5 "${REPO_RAW}/Install/versao" -o /home/versao >/dev/null 2>&1 || wget -q -O /home/versao "${REPO_RAW}/Install/versao" >/dev/null 2>&1
+
+if [[ -s "/home/versao" ]]; then
+    vrs1=$(head -n1 /bin/versao 2>/dev/null | grep -o -E '[0-9]+' | head -n1)
+    vrs2=$(head -n1 /home/versao 2>/dev/null | grep -o -E '[0-9]+' | head -n1)
+    [[ -n "$vrs2" && "$vrs1" != "$vrs2" ]] && mv /home/versao /tmp/att
+fi
+

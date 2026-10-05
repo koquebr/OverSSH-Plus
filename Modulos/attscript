@@ -1,0 +1,183 @@
+#!/bin/bash
+#====================================================
+# OVER SSH PLUS - ATUALIZADOR INTELIGENTE VIA GITHUB
+#====================================================
+clear
+
+# Cores
+C_RESET="\033[0m"
+C_CYAN="\033[1;36m"
+C_GREEN="\033[1;32m"
+C_YELLOW="\033[1;33m"
+C_RED="\033[1;31m"
+C_WHITE="\033[1;37m"
+
+DEFAULT_REPO_RAW="https://raw.githubusercontent.com/koquebr/SSHPLUS/master"
+REPO_CONFIG="/etc/SSHPlus/repo.conf"
+
+mkdir -p /etc/SSHPlus >/dev/null 2>&1
+
+if [[ -f "$REPO_CONFIG" ]]; then
+    REPO_RAW=$(cat "$REPO_CONFIG" 2>/dev/null | tr -d '\r\n')
+fi
+[[ -z "$REPO_RAW" ]] && REPO_RAW="$DEFAULT_REPO_RAW"
+
+fun_bar() {
+    comando[0]="$1"
+    comando[1]="$2"
+    (
+        [[ -e $HOME/fim ]] && rm -f $HOME/fim
+        ${comando[0]} >/dev/null 2>&1
+        ${comando[1]} >/dev/null 2>&1
+        touch $HOME/fim
+    ) >/dev/null 2>&1 &
+    tput civis
+    echo -ne "   ${C_YELLOW}AGUARDE ${C_WHITE}- ${C_CYAN}["
+    while true; do
+        for ((i = 0; i < 18; i++)); do
+            echo -ne "${C_GREEN}#"
+            sleep 0.08s
+        done
+        [[ -e $HOME/fim ]] && rm -f $HOME/fim && break
+        echo -e "${C_CYAN}]"
+        sleep 1s
+        tput cuu1
+        tput dl1
+        echo -ne "   ${C_YELLOW}AGUARDE ${C_WHITE}- ${C_CYAN}["
+    done
+    echo -e "${C_CYAN}]${C_WHITE} - ${C_GREEN}OK !${C_RESET}"
+    tput cnorm
+}
+
+fun_verif_att() {
+    rm -f /tmp/att /home/versao >/dev/null 2>&1
+    curl -sSL --connect-timeout 8 "${REPO_RAW}/Install/versao" -o /tmp/att >/dev/null 2>&1
+    if [[ ! -s /tmp/att ]]; then
+        wget --timeout=8 -q -O /tmp/att "${REPO_RAW}/Install/versao" >/dev/null 2>&1
+    fi
+}
+
+config_repo() {
+    clear
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}       CONFIGURAR REPOSITÓRIO GITHUB PRÓPRIO        ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+    echo -e "${C_WHITE}Repositório atual:${C_RESET} ${C_YELLOW}${REPO_RAW}${C_RESET}\n"
+    echo -e "${C_WHITE}Formato aceito: Usuário/Repositório (Ex: ${C_GREEN}seu-usuario/SSHPLUS${C_WHITE})${C_RESET}"
+    echo -e "${C_WHITE}Ou a URL Raw completa.${C_RESET}\n"
+    echo -ne "${C_CYAN}Digite seu Usuário/Repositório GitHub [ou deixe vazio para cancelar]: ${C_WHITE}"
+    read -r novo_repo
+    
+    if [[ -n "$novo_repo" ]]; then
+        if [[ "$novo_repo" =~ ^https:// ]]; then
+            REPO_RAW="$novo_repo"
+        else
+            REPO_RAW="https://raw.githubusercontent.com/${novo_repo}/master"
+        fi
+        echo "$REPO_RAW" > "$REPO_CONFIG"
+        echo -e "\n${C_GREEN}[✓] Repositório salvo com sucesso:${C_RESET} ${C_YELLOW}$REPO_RAW${C_RESET}"
+        sleep 2s
+    fi
+}
+
+while true; do
+    clear
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}         ATUALIZADOR OVER SSH PLUS MANAGER          ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_WHITE}Repositório: ${C_YELLOW}${REPO_RAW}${C_RESET}\n"
+    echo -e "  ${C_CYAN}[01]${C_RESET} ${C_WHITE}•${C_RESET} ${C_GREEN}BUSCAR E APLICAR ATUALIZAÇÕES AGORA${C_RESET}"
+    echo -e "  ${C_CYAN}[02]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}ALTERAR REPOSITÓRIO GITHUB (SEU LINK)${C_RESET}"
+    echo -e "  ${C_CYAN}[00]${C_RESET} ${C_WHITE}•${C_RESET} ${C_RED}VOLTAR AO MENU${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -ne "${C_GREEN}Opção: ${C_WHITE}"
+    read -r menu_att
+    
+    case $menu_att in
+        1|01)
+            echo -e "\n   ${C_YELLOW}VERIFICANDO ATUALIZAÇÕES NO GITHUB...${C_RESET}\n"
+            fun_bar 'fun_verif_att'
+
+            if [[ ! -s "/tmp/att" ]]; then
+                echo -e "\n${C_RED}[ERRO] Não foi possível consultar o repositório remoto!${C_RESET}"
+                echo -e "${C_WHITE}URL testada: ${C_YELLOW}${REPO_RAW}/Install/versao${C_RESET}\n"
+                echo -ne "${C_YELLOW}Pressione [ENTER] para continuar: ${C_RESET}"; read -r
+                continue
+            fi
+
+            # Obter versão local e remota
+            [[ ! -f /bin/versao ]] && echo "VERSAO: 1" > /bin/versao
+            vrs_local=$(head -n 1 /bin/versao | grep -o -E '[0-9]+' | head -n1)
+            vrs_remota=$(head -n 1 /tmp/att | grep -o -E '[0-9]+' | head -n1)
+
+            [[ -z "$vrs_local" ]] && vrs_local="0"
+            [[ -z "$vrs_remota" ]] && vrs_remota="0"
+
+            echo ""
+            if [[ "$vrs_local" -ge "$vrs_remota" && "$vrs_local" != "0" ]]; then
+                echo -e "   ${C_GREEN}[✓] O SCRIPT JÁ ESTÁ NA VERSÃO MAIS RECENTE! (v${vrs_local})${C_RESET}\n"
+                rm -f /tmp/att >/dev/null 2>&1
+                echo -ne "${C_YELLOW}Deseja forçar uma reinstalação/atualização mesmo assim? [s/N]: ${C_RESET}"
+                read -r forcar
+                if [[ ! "$forcar" =~ ^[sS]$ ]]; then
+                    echo -ne "\n${C_CYAN}Pressione [ENTER] para voltar...${C_RESET}"; read -r
+                    continue
+                fi
+            else
+                echo -e "   ${C_CYAN}Existe uma nova atualização disponível!${C_RESET}"
+                echo -e "   ${C_WHITE}Versão Atual: ${C_RED}v${vrs_local}${C_RESET}  ${C_WHITE}|  Nova Versão: ${C_GREEN}v${vrs_remota}${C_RESET}\n"
+                echo -e "   ${C_YELLOW}Novidades e Alterações:${C_RESET}"
+                echo -e "   ${C_CYAN}---------------------------------------------${C_RESET}"
+                while IFS= read -r linha; do
+                    echo -e "   ${C_WHITE}• ${C_YELLOW}${linha}${C_RESET}"
+                done < "/tmp/att"
+                echo -e "   ${C_CYAN}---------------------------------------------${C_RESET}\n"
+                
+                echo -ne "   ${C_GREEN}Deseja aplicar a atualização agora? [S/n]: ${C_WHITE}"
+                read -r res
+                if [[ "$res" =~ ^[nN]$ ]]; then
+                    rm -f /tmp/att >/dev/null 2>&1
+                    continue
+                fi
+            fi
+
+            echo -e "\n${C_GREEN}[+] Baixando e aplicando atualizações...${C_RESET}"
+
+            fun_aplicar_att() {
+                # Baixar instalador principal Plus
+                curl -sSL --connect-timeout 10 "${REPO_RAW}/Plus" -o /root/Plus_att >/dev/null 2>&1 || wget -q -O /root/Plus_att "${REPO_RAW}/Plus" >/dev/null 2>&1
+                if [[ -s /root/Plus_att ]]; then
+                    chmod +x /root/Plus_att
+                    export OVER_UPDATE=1
+                    bash /root/Plus_att >/dev/null 2>&1
+                    rm -f /root/Plus_att >/dev/null 2>&1
+                fi
+                cp -f /tmp/att /bin/versao >/dev/null 2>&1
+                chmod +x /bin/versao >/dev/null 2>&1
+            }
+
+            fun_bar 'fun_aplicar_att'
+
+            rm -f /tmp/att >/dev/null 2>&1
+            echo -e "\n${C_GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+            echo -e "${C_GREEN}  ✓ SISTEMA ATUALIZADO COM SUCESSO!                 ${C_RESET}"
+            echo -e "${C_GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+            echo -ne "${C_YELLOW}Pressione [ENTER] para reiniciar o menu: ${C_RESET}"; read -r
+            menu
+            exit 0
+            ;;
+        2|02)
+            config_repo
+            ;;
+        0|00)
+            menu
+            exit 0
+            ;;
+        *)
+            echo -e "\n${C_RED}Opção inválida!${C_RESET}"; sleep 1s
+            ;;
+    esac
+done
+
+
+

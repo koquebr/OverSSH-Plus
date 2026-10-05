@@ -1,0 +1,165 @@
+#!/bin/bash
+#====================================================
+# OVER SSH PLUS - MAIN MENU
+#====================================================
+clear
+
+# Cores Modernas
+C_RESET="\033[0m"
+C_CYAN="\033[1;36m"
+C_GREEN="\033[1;32m"
+C_YELLOW="\033[1;33m"
+C_RED="\033[1;31m"
+C_WHITE="\033[1;37m"
+C_BLUE="\033[1;34m"
+C_PURPLE="\033[1;35m"
+
+while true; do
+    clear
+
+    # Coleta de Informações do Sistema
+    os_name=$(cat /etc/issue.net 2>/dev/null || cat /etc/os-release | grep "PRETTY_NAME" | cut -d'"' -f2 | head -n1)
+    [[ -z "$os_name" ]] && os_name="Linux VPS"
+    
+    hora_atual=$(date +"%H:%M:%S")
+    
+    # RAM
+    ram_total=$(free -m | awk '/Mem:/ {print $2}')
+    ram_used=$(free -m | awk '/Mem:/ {print $3}')
+    if [[ -n "$ram_total" && "$ram_total" -gt 0 ]]; then
+        ram_pct=$(awk "BEGIN {printf \"%.1f\", ($ram_used/$ram_total)*100}")
+    else
+        ram_pct="0"
+    fi
+    
+    # CPU
+    cpu_cores=$(nproc 2>/dev/null || echo 1)
+    cpu_use=$(top -bn1 | grep 'Cpu(s)' | awk '{print $2}' 2>/dev/null)
+    [[ -z "$cpu_use" ]] && cpu_use="0.0"
+
+    # Usuários SSH
+    total_users=$(awk -F: '$3 >= 500 {print $1}' /etc/passwd | grep -v 'nobody' | wc -l)
+    
+    # Online Users (SSH + Dropbear + OpenVPN)
+    online_ssh=$(ps -u $(awk -F: '$3 >= 500 {print $1}' /etc/passwd | tr '\n' ',' | sed 's/,$//') 2>/dev/null | grep sshd | wc -l)
+    online_drop=$(ps aux | grep dropbear | grep -v 'dropbear -p' | grep -v grep | wc -l)
+    online_users=$((online_ssh + online_drop))
+    
+    # Expirados
+    expired_users=0
+    if [[ -f /etc/SSHPlus/Exp ]]; then
+        expired_users=$(wc -l < /etc/SSHPlus/Exp 2>/dev/null || echo 0)
+    fi
+
+    # Status dos Serviços
+    sts_limiter=$(pgrep -f "limiter\|droplimiter" >/dev/null && echo -e "\033[1;32m●\033[0m" || echo -e "\033[1;31m○\033[0m")
+    sts_badvpn=$(pgrep -f "badvpn-udpgw" >/dev/null && echo -e "\033[1;32m[ON]\033[0m" || echo -e "\033[1;31m[OFF]\033[0m")
+    sts_app=$(pgrep -f "onlineapp" >/dev/null && echo -e "\033[1;32m●\033[0m" || echo -e "\033[1;31m○\033[0m")
+    sts_check=$(pgrep -f "chks" >/dev/null && echo -e "\033[1;32m●\033[0m" || echo -e "\033[1;31m○\033[0m")
+
+    # Banner Superior
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_CYAN}   ██████  ██    ██ ███████ ██████      ███████ ███████ ██   ██  ${C_RESET}"
+    echo -e "${C_CYAN}  ██    ██ ██    ██ ██      ██   ██     ██      ██      ██   ██  ${C_RESET}"
+    echo -e "${C_GREEN}  ██    ██ ██    ██ █████   ██████      ███████ ███████ ███████  ${C_RESET}"
+    echo -e "${C_GREEN}  ██    ██  ██  ██  ██      ██   ██          ██      ██ ██   ██  ${C_RESET}"
+    echo -e "${C_WHITE}   ██████    ████   ███████ ██   ██     ███████ ███████ ██   ██  ${C_RESET}"
+    echo -e "${C_CYAN}              >>> OVER SSH PLUS MANAGER <<<                      ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    
+    # Painel de Estatísticas
+    printf "${C_CYAN}%-20s ${C_CYAN}%-22s ${C_CYAN}%-20s${C_RESET}\n" "SISTEMA" "MEMÓRIA RAM" "PROCESSADOR"
+    printf "${C_WHITE}OS: %-16s ${C_WHITE}Total: %-15s ${C_WHITE}Núcleos: %-10s${C_RESET}\n" "${os_name:0:16}" "${ram_total}MB" "$cpu_cores"
+    printf "${C_WHITE}Hora: %-14s ${C_WHITE}Em uso: %-14s ${C_WHITE}Em uso: %-10s${C_RESET}\n" "$hora_atual" "${ram_pct}%" "${cpu_use}%"
+    echo -e "${C_CYAN}─────────────────────────────────────────────────────────────────${C_RESET}"
+    printf "${C_GREEN}Onlines: %-13s ${C_RED}Expirados: %-11s ${C_YELLOW}Total Contas: %-10s${C_RESET}\n" "$online_users" "$expired_users" "$total_users"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+
+    # Grid de Opções
+    echo -e "  ${C_CYAN}[01]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}CRIAR USUÁRIO${C_RESET}             ${C_CYAN}[11]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}SPEEDTEST${C_RESET}"
+    echo -e "  ${C_CYAN}[02]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}CRIAR USUÁRIO TESTE${C_RESET}       ${C_CYAN}[12]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}BANNER VPS${C_RESET}"
+    echo -e "  ${C_CYAN}[03]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}REMOVER USUÁRIO${C_RESET}           ${C_CYAN}[13]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}CONSUMO TRÁFEGO${C_RESET}"
+    echo -e "  ${C_CYAN}[04]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}MONITOR ONLINE${C_RESET}            ${C_CYAN}[14]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}OTIMIZAR SISTEMA${C_RESET}"
+    echo -e "  ${C_CYAN}[05]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}MUDAR DATA / VALIDADE${C_RESET}     ${C_CYAN}[15]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}BACKUP USUÁRIOS${C_RESET}"
+    echo -e "  ${C_CYAN}[06]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}ALTERAR LIMITE LOGIN${C_RESET}      ${C_CYAN}[16]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}MEMÓRIA VIRTUAL (SWAP)${C_RESET}"
+    echo -e "  ${C_CYAN}[07]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}MUDAR SENHA USUÁRIO${C_RESET}       ${C_CYAN}[17]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}LIMITER AUTO${C_RESET} $sts_limiter"
+    echo -e "  ${C_CYAN}[08]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}REMOVER EXPIRADOS${C_RESET}         ${C_CYAN}[18]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}BADVPN UDPGW${C_RESET} $sts_badvpn"
+    echo -e "  ${C_CYAN}[09]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}RELATÓRIO DE USUÁRIOS${C_RESET}     ${C_CYAN}[19]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}ONLINE APP${C_RESET} $sts_app"
+    echo -e "  ${C_CYAN}[10]${C_RESET} ${C_WHITE}•${C_RESET} ${C_GREEN}MODO DE CONEXÃO${C_RESET}           ${C_CYAN}[20]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}CHECKUSER PORTA${C_RESET} $sts_check"
+    echo -e "  ${C_CYAN}[00]${C_RESET} ${C_WHITE}•${C_RESET} ${C_RED}SAIR DO PAINEL${C_RESET}            ${C_CYAN}[21]${C_RESET} ${C_WHITE}•${C_RESET} ${C_CYAN}INFO VPS >>>${C_RESET}"
+    echo -e "                                    ${C_CYAN}[22]${C_RESET} ${C_WHITE}•${C_RESET} ${C_PURPLE}MAIS FERRAMENTAS >>>${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    
+    echo -ne "${C_GREEN}DIGITE A OPÇÃO DESEJADA: ${C_WHITE}"
+    read opc
+
+    case $opc in
+        1|01) criarusuario ;;
+        2|02) criarteste ;;
+        3|03) remover ;;
+        4|04) sshmonitor ;;
+        5|05) mudardata ;;
+        6|06) alterarlimite ;;
+        7|07) alterarsenha ;;
+        8|08) expcleaner ;;
+        9|09) infousers ;;
+        10) conexao ;;
+        11) speedtest ;;
+        12) banner ;;
+        13) nload 2>/dev/null || (apt-get install nload -y >/dev/null 2>&1 && nload) ;;
+        14) otimizar ;;
+        15) userbackup ;;
+        16) swapmemory ;;
+        17) limiter ;;
+        18) badvpn ;;
+        19) onlineapp ;;
+        20) initcheck ;;
+        21) detalhes ;;
+        22)
+            while true; do
+                clear
+                echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+                echo -e "${C_PURPLE}               >>> OVER SSH PLUS - MAIS OPÇÕES <<<               ${C_RESET}"
+                echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+                echo -e "  ${C_CYAN}[01]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}GERENCIADOR V2RAY / VLESS / REALITY${C_RESET}"
+                echo -e "  ${C_CYAN}[02]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}GERENCIADOR TROJAN-GO${C_RESET}"
+                echo -e "  ${C_CYAN}[03]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}BOT TELEGRAM (GERENCIAMENTO)${C_RESET}"
+                echo -e "  ${C_CYAN}[04]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}ADICIONAR HOST SQUID / PROXY${C_RESET}"
+                echo -e "  ${C_CYAN}[05]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}REMOVER HOST SQUID / PROXY${C_RESET}"
+                echo -e "  ${C_CYAN}[06]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}BLOQUEAR / DESBLOQUEAR TORRENT${C_RESET}"
+                echo -e "  ${C_CYAN}[07]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}ALTERAR SENHA ROOT DA VPS${C_RESET}"
+                echo -e "  ${C_CYAN}[08]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}REINICIAR SERVIÇOS DO SERVIDOR${C_RESET}"
+                echo -e "  ${C_CYAN}[09]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}REINICIAR SISTEMA VPS${C_RESET}"
+                echo -e "  ${C_CYAN}[10]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}ATUALIZAR SCRIPT OVER SSH PLUS${C_RESET}"
+                echo -e "  ${C_CYAN}[11]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}DESINSTALAR SCRIPT COMPLETO${C_RESET}"
+                echo -e "  ${C_CYAN}[00]${C_RESET} ${C_WHITE}•${C_RESET} ${C_GREEN}VOLTAR AO MENU PRINCIPAL${C_RESET}"
+                echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+                echo -ne "${C_GREEN}ESCOLHA UMA OPÇÃO: ${C_WHITE}"
+                read subopc
+                case $subopc in
+                    1|01) v2raymanager ;;
+                    2|02) trojan-go ;;
+                    3|03) botssh ;;
+                    4|04) addhost ;;
+                    5|05) delhost ;;
+                    6|06) blockt ;;
+                    7|07) senharoot ;;
+                    8|08) reiniciarservicos ;;
+                    9|09) reiniciarsistema ;;
+                    10) attscript ;;
+                    11) delscript ;;
+                    0|00) break ;;
+                    *) echo -e "\n${C_RED}Opção inválida!${C_RESET}"; sleep 1s ;;
+                esac
+            done
+            ;;
+        0|00)
+            echo -e "\n${C_CYAN}Saindo do Over SSH Plus... Até logo!${C_RESET}\n"
+            exit 0
+            ;;
+        *)
+            echo -e "\n${C_RED}Opção inválida! Tente novamente.${C_RESET}"
+            sleep 1s
+            ;;
+    esac
+done

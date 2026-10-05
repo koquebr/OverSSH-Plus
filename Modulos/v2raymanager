@@ -1,0 +1,426 @@
+#!/bin/bash
+#====================================================
+# OVER SSH PLUS - GERENCIADOR V2RAY / VLESS / REALITY
+#====================================================
+clear
+
+C_RESET="\033[0m"
+C_CYAN="\033[1;36m"
+C_GREEN="\033[1;32m"
+C_YELLOW="\033[1;33m"
+C_RED="\033[1;31m"
+C_WHITE="\033[1;37m"
+C_PURPLE="\033[1;35m"
+
+CONF_DIR="/etc/xray"
+CONF_FILE="$CONF_DIR/config.json"
+REALITY_INFO="$CONF_DIR/reality_info.json"
+USR_DB="/etc/SSHPlus/RegV2ray"
+
+mkdir -p /etc/SSHPlus "$CONF_DIR" >/dev/null 2>&1
+touch "$USR_DB"
+
+get_ip() {
+    IP=$(cat /etc/IP 2>/dev/null)
+    [[ -z "$IP" ]] && IP=$(curl -s4 icanhazip.com 2>/dev/null || curl -s4 ifconfig.me)
+    echo "$IP"
+}
+
+check_installed() {
+    if command -v xray >/dev/null 2>&1 || command -v v2ray >/dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+check_running() {
+    if pgrep -x "xray" >/dev/null 2>&1 || pgrep -x "v2ray" >/dev/null 2>&1; then
+        echo -e "${C_GREEN}[ ATIVADO ]${C_RESET}"
+    else
+        echo -e "${C_RED}[ DESATIVADO ]${C_RESET}"
+    fi
+}
+
+install_xray_core() {
+    clear
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}       INSTALANDO / ATUALIZANDO XRAY / V2RAY CORE     ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+    
+    apt-get update -y >/dev/null 2>&1
+    apt-get install curl wget unzip jq uuid-runtime socat -y >/dev/null 2>&1
+
+    echo -e "${C_YELLOW}Baixando e instalando a versão mais recente do Xray-core...${C_RESET}"
+    bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install >/dev/null 2>&1
+    
+    if ! command -v xray >/dev/null 2>&1; then
+        echo -e "${C_YELLOW}Tentando método secundário direto...${C_RESET}"
+        ARCH=$(uname -m)
+        case "$ARCH" in
+            x86_64) XARCH="64" ;;
+            aarch64|arm64) XARCH="arm64-v8a" ;;
+            *) XARCH="64" ;;
+        esac
+        wget -q "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${XARCH}.zip" -O /tmp/xray.zip
+        unzip -o /tmp/xray.zip -d /usr/local/bin/ >/dev/null 2>&1
+        chmod +x /usr/local/bin/xray
+        rm -f /tmp/xray.zip
+    fi
+
+    if command -v xray >/dev/null 2>&1; then
+        echo -e "\n${C_GREEN}[✓] Xray Core instalado com sucesso! Versão: $(xray version | head -n1)${C_RESET}"
+    else
+        echo -e "\n${C_RED}[!] Erro ao instalar Xray Core. Verifique a conexão com a internet.${C_RESET}"
+    fi
+    sleep 2s
+}
+
+config_vmess() {
+    clear
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}           CONFIGURAR V2RAY VMESS (WS)              ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+    
+    if ! check_installed; then
+        install_xray_core
+    fi
+
+    echo -ne "${C_YELLOW}Informe a porta para o VMess [Padrão: 8080]: ${C_WHITE}"
+    read -e -i "8080" port_vmess
+    echo -ne "${C_YELLOW}Informe o Path do WebSocket [Padrão: /vmess]: ${C_WHITE}"
+    read -e -i "/vmess" path_vmess
+
+    default_uuid=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)
+
+    cat <<EOF > "$CONF_FILE"
+{
+  "log": { "loglevel": "warning" },
+  "inbounds": [
+    {
+      "port": $port_vmess,
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          { "id": "$default_uuid", "alterId": 0, "email": "admin@overssh.com" }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": { "path": "$path_vmess" }
+      }
+    }
+  ],
+  "outbounds": [ { "protocol": "freedom" } ]
+}
+EOF
+
+    systemctl restart xray >/dev/null 2>&1 || service xray restart >/dev/null 2>&1
+    
+    echo "admin $default_uuid $(date '+%Y-%m-%d' -d '+30 days') $port_vmess vmess" >> "$USR_DB"
+
+    echo -e "\n${C_GREEN}[✓] VMess configurado com sucesso na porta $port_vmess e Path $path_vmess!${C_RESET}"
+    echo -e "${C_CYAN}UUID Padrão: ${C_WHITE}$default_uuid${C_RESET}"
+    sleep 3s
+}
+
+config_vless() {
+    clear
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}           CONFIGURAR V2RAY VLESS (WS)              ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+    
+    if ! check_installed; then
+        install_xray_core
+    fi
+
+    echo -ne "${C_YELLOW}Informe a porta para o VLESS [Padrão: 8888]: ${C_WHITE}"
+    read -e -i "8888" port_vless
+    echo -ne "${C_YELLOW}Informe o Path do WebSocket [Padrão: /vless]: ${C_WHITE}"
+    read -e -i "/vless" path_vless
+
+    default_uuid=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)
+
+    cat <<EOF > "$CONF_FILE"
+{
+  "log": { "loglevel": "warning" },
+  "inbounds": [
+    {
+      "port": $port_vless,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          { "id": "$default_uuid", "level": 0, "email": "admin@overssh.com" }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": { "path": "$path_vless" }
+      }
+    }
+  ],
+  "outbounds": [ { "protocol": "freedom" } ]
+}
+EOF
+
+    systemctl restart xray >/dev/null 2>&1 || service xray restart >/dev/null 2>&1
+    
+    echo "admin $default_uuid $(date '+%Y-%m-%d' -d '+30 days') $port_vless vless" >> "$USR_DB"
+
+    echo -e "\n${C_GREEN}[✓] VLESS configurado com sucesso na porta $port_vless e Path $path_vless!${C_RESET}"
+    echo -e "${C_CYAN}UUID Padrão: ${C_WHITE}$default_uuid${C_RESET}"
+    sleep 3s
+}
+
+config_reality() {
+    clear
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}        CONFIGURAR VLESS REALITY (ALTA VELOCIDADE)   ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+    
+    if ! check_installed; then
+        install_xray_core
+    fi
+
+    echo -ne "${C_YELLOW}Informe a porta para o Reality [Padrão: 443]: ${C_WHITE}"
+    read -e -i "443" port_reality
+    echo -ne "${C_YELLOW}Informe o SNI de camuflagem [Padrão: www.microsoft.com]: ${C_WHITE}"
+    read -e -i "www.microsoft.com" sni_dest
+
+    default_uuid=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)
+    
+    # Gerar par de chaves x25519
+    key_pair=$(xray x25519 2>/dev/null)
+    priv_key=$(echo "$key_pair" | grep -i "Private key:" | awk '{print $3}')
+    pub_key=$(echo "$key_pair" | grep -i "Public key:" | awk '{print $3}')
+    short_id=$(openssl rand -hex 4 2>/dev/null || echo "1a2b3c4d")
+
+    cat <<EOF > "$CONF_FILE"
+{
+  "log": { "loglevel": "warning" },
+  "inbounds": [
+    {
+      "port": $port_reality,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          { "id": "$default_uuid", "flow": "xtls-rprx-vision", "email": "admin@overssh.com" }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "$sni_dest:443",
+          "xver": 0,
+          "serverNames": [ "$sni_dest" ],
+          "privateKey": "$priv_key",
+          "shortIds": [ "$short_id" ]
+        }
+      }
+    }
+  ],
+  "outbounds": [ { "protocol": "freedom" } ]
+}
+EOF
+
+    cat <<EOF > "$REALITY_INFO"
+{
+  "pubKey": "$pub_key",
+  "shortId": "$short_id",
+  "sni": "$sni_dest",
+  "port": $port_reality
+}
+EOF
+
+    systemctl restart xray >/dev/null 2>&1 || service xray restart >/dev/null 2>&1
+    
+    echo "admin $default_uuid $(date '+%Y-%m-%d' -d '+30 days') $port_reality reality" >> "$USR_DB"
+
+    echo -e "\n${C_GREEN}[✓] VLESS Reality ativado com sucesso!${C_RESET}"
+    echo -e "${C_CYAN}Porta: ${C_WHITE}$port_reality${C_RESET}"
+    echo -e "${C_CYAN}SNI Camuflado: ${C_WHITE}$sni_dest${C_RESET}"
+    echo -e "${C_CYAN}Public Key: ${C_WHITE}$pub_key${C_RESET}"
+    echo -e "${C_CYAN}Short ID: ${C_WHITE}$short_id${C_RESET}"
+    echo -e "${C_CYAN}UUID Padrão: ${C_WHITE}$default_uuid${C_RESET}"
+    sleep 4s
+}
+
+add_user_uuid() {
+    clear
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}            CRIAR USUÁRIO / UUID V2RAY               ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+
+    if [[ ! -f "$CONF_FILE" ]]; then
+        echo -e "${C_RED}[!] V2Ray/Xray não configurado! Configure VMess, VLESS ou Reality primeiro.${C_RESET}"
+        sleep 2s
+        return
+    fi
+
+    echo -ne "${C_YELLOW}Nome do usuário: ${C_WHITE}"
+    read user_name
+    [[ -z "$user_name" ]] && user_name="user_$(date +%s)"
+
+    echo -ne "${C_YELLOW}Validade em dias [Padrão: 30]: ${C_WHITE}"
+    read -e -i "30" dias
+    val_date=$(date '+%Y-%m-%d' -d "+$dias days")
+
+    new_uuid=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)
+
+    # Adiciona cliente no config.json
+    if grep -q "xtls-rprx-vision" "$CONF_FILE"; then
+        proto="reality"
+        jq ".inbounds[0].settings.clients += [{\"id\": \"$new_uuid\", \"flow\": \"xtls-rprx-vision\", \"email\": \"$user_name@overssh.com\"}]" "$CONF_FILE" > /tmp/xray_tmp.json && mv /tmp/xray_tmp.json "$CONF_FILE"
+    else
+        proto="ws"
+        jq ".inbounds[0].settings.clients += [{\"id\": \"$new_uuid\", \"email\": \"$user_name@overssh.com\"}]" "$CONF_FILE" > /tmp/xray_tmp.json && mv /tmp/xray_tmp.json "$CONF_FILE"
+    fi
+
+    systemctl restart xray >/dev/null 2>&1 || service xray restart >/dev/null 2>&1
+
+    port_cur=$(jq -r '.inbounds[0].port' "$CONF_FILE" 2>/dev/null || echo 443)
+    echo "$user_name $new_uuid $val_date $port_cur $proto" >> "$USR_DB"
+
+    echo -e "\n${C_GREEN}[✓] Usuário criado com sucesso!${C_RESET}"
+    echo -e "${C_CYAN}Usuário: ${C_WHITE}$user_name${C_RESET}"
+    echo -e "${C_CYAN}UUID: ${C_WHITE}$new_uuid${C_RESET}"
+    echo -e "${C_CYAN}Validade: ${C_WHITE}$val_date${C_RESET}"
+    echo ""
+    echo -ne "${C_YELLOW}Pressione Enter para ver o link de conexão...${C_RESET}"
+    read -r
+    show_user_link "$new_uuid" "$user_name"
+}
+
+show_user_link() {
+    clear
+    uuid_target="$1"
+    name_target="$2"
+    vps_ip=$(get_ip)
+
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}              LINK DE IMPORTAÇÃO V2RAY              ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+
+    if [[ -f "$REALITY_INFO" ]] && grep -q "reality" "$CONF_FILE"; then
+        pubk=$(jq -r '.pubKey' "$REALITY_INFO")
+        sid=$(jq -r '.shortId' "$REALITY_INFO")
+        sni=$(jq -r '.sni' "$REALITY_INFO")
+        port=$(jq -r '.port' "$REALITY_INFO")
+        link="vless://${uuid_target}@${vps_ip}:${port}?security=reality&encryption=none&pbk=${pubk}&headerType=none&fp=chrome&spx=%2F&type=tcp&sni=${sni}&sid=${sid}&flow=xtls-rprx-vision#OverSSH-${name_target}"
+        
+        echo -e "${C_YELLOW}Link VLESS Reality:${C_RESET}"
+        echo -e "${C_WHITE}${link}${C_RESET}\n"
+    else
+        port=$(jq -r '.inbounds[0].port' "$CONF_FILE" 2>/dev/null || echo 8080)
+        path=$(jq -r '.inbounds[0].streamSettings.wsSettings.path' "$CONF_FILE" 2>/dev/null || echo "/vmess")
+        proto=$(jq -r '.inbounds[0].protocol' "$CONF_FILE" 2>/dev/null || echo "vmess")
+
+        if [[ "$proto" == "vless" ]]; then
+            link="vless://${uuid_target}@${vps_ip}:${port}?type=ws&security=none&path=${path}#OverSSH-${name_target}"
+            echo -e "${C_YELLOW}Link VLESS WS:${C_RESET}"
+            echo -e "${C_WHITE}${link}${C_RESET}\n"
+        else
+            json_vmess=$(cat <<EOF
+{"v":"2","ps":"OverSSH-${name_target}","add":"${vps_ip}","port":"${port}","id":"${uuid_target}","aid":"0","net":"ws","path":"${path}","type":"none","host":"","tls":""}
+EOF
+)
+            b64_vmess=$(echo -n "$json_vmess" | base64 -w 0 2>/dev/null || echo -n "$json_vmess" | base64)
+            link="vmess://${b64_vmess}"
+            echo -e "${C_YELLOW}Link VMess WS:${C_RESET}"
+            echo -e "${C_WHITE}${link}${C_RESET}\n"
+        fi
+    fi
+
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -ne "${C_GREEN}Pressione Enter para continuar...${C_RESET}"
+    read -r
+}
+
+list_users() {
+    clear
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}            USUÁRIOS V2RAY REGISTRADOS              ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+    
+    if [[ ! -s "$USR_DB" ]]; then
+        echo -e "${C_YELLOW}Nenhum usuário cadastrado no momento.${C_RESET}\n"
+    else
+        printf "${C_CYAN}%-15s %-38s %-12s %-8s${C_RESET}\n" "USUÁRIO" "UUID" "VALIDADE" "TIPO"
+        echo -e "${C_WHITE}-----------------------------------------------------------------------${C_RESET}"
+        while read -r u id val p proto; do
+            [[ -z "$u" ]] && continue
+            printf "${C_YELLOW}%-15s ${C_WHITE}%-38s ${C_GREEN}%-12s ${C_CYAN}%-8s${C_RESET}\n" "$u" "$id" "$val" "$proto"
+        done < "$USR_DB"
+    fi
+    echo ""
+    echo -ne "${C_GREEN}Pressione Enter para voltar...${C_RESET}"
+    read -r
+}
+
+uninstall_xray() {
+    clear
+    echo -e "${C_RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_RED}              DESINSTALAR V2RAY / XRAY              ${C_RESET}"
+    echo -e "${C_RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+    echo -ne "${C_YELLOW}Tem certeza que deseja remover o Xray/V2Ray? [s/N]: ${C_WHITE}"
+    read -e -i "n" cf
+    if [[ "$cf" =~ ^[sS]$ ]]; then
+        systemctl stop xray >/dev/null 2>&1
+        systemctl disable xray >/dev/null 2>&1
+        rm -rf /usr/local/bin/xray /etc/xray /etc/systemd/system/xray.service /etc/SSHPlus/RegV2ray >/dev/null 2>&1
+        systemctl daemon-reload >/dev/null 2>&1
+        echo -e "\n${C_GREEN}[✓] V2Ray/Xray removido com sucesso!${C_RESET}"
+        sleep 2s
+    fi
+}
+
+while true; do
+    clear
+    sts_xray=$(check_running)
+
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_PURPLE}         >>> OVER SSH PLUS - GERENCIADOR V2RAY / XRAY <<<        ${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "  ${C_WHITE}STATUS DO SERVIÇO:${C_RESET} $sts_xray"
+    echo -e "${C_CYAN}─────────────────────────────────────────────────────────────────${C_RESET}"
+    echo -e "  ${C_CYAN}[01]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}INSTALAR / CONFIGURAR VMESS (WS)${C_RESET}"
+    echo -e "  ${C_CYAN}[02]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}INSTALAR / CONFIGURAR VLESS (WS)${C_RESET}"
+    echo -e "  ${C_CYAN}[03]${C_RESET} ${C_WHITE}•${C_RESET} ${C_GREEN}INSTALAR / CONFIGURAR VLESS REALITY (ALTA VELOCIDADE)${C_RESET}"
+    echo -e "  ${C_CYAN}[04]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}CRIAR USUÁRIO / NOVO UUID${C_RESET}"
+    echo -e "  ${C_CYAN}[05]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}LISTAR USUÁRIOS REGISTRADOS${C_RESET}"
+    echo -e "  ${C_CYAN}[06]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}OBTER LINK DE IMPORTAÇÃO DE CONTA${C_RESET}"
+    echo -e "  ${C_CYAN}[07]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}ATUALIZAR XRAY-CORE PARA ÚLTIMA VERSÃO${C_RESET}"
+    echo -e "  ${C_CYAN}[08]${C_RESET} ${C_WHITE}•${C_RESET} ${C_RED}DESINSTALAR V2RAY / XRAY${C_RESET}"
+    echo -e "  ${C_CYAN}[00]${C_RESET} ${C_WHITE}•${C_RESET} ${C_CYAN}VOLTAR AO MENU PRINCIPAL${C_RESET}"
+    echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    
+    echo -ne "${C_GREEN}ESCOLHA UMA OPÇÃO: ${C_WHITE}"
+    read opv
+
+    case $opv in
+        1|01) config_vmess ;;
+        2|02) config_vless ;;
+        3|03) config_reality ;;
+        4|04) add_user_uuid ;;
+        5|05) list_users ;;
+        6|06)
+            echo -ne "${C_YELLOW}Digite o UUID ou Usuário: ${C_WHITE}"
+            read search_u
+            found=$(grep "$search_u" "$USR_DB" | head -n1)
+            if [[ -n "$found" ]]; then
+                show_user_link $(echo "$found" | awk '{print $2}') $(echo "$found" | awk '{print $1}')
+            else
+                echo -e "${C_RED}Usuário/UUID não encontrado!${C_RESET}"
+                sleep 2s
+            fi
+            ;;
+        7|07) install_xray_core ;;
+        8|08) uninstall_xray ;;
+        0|00) break ;;
+        *) echo -e "\n${C_RED}Opção inválida!${C_RESET}"; sleep 1s ;;
+    esac
+done

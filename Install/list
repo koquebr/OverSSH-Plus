@@ -1,0 +1,109 @@
+#!/bin/bash
+#====================================================
+# OVER SSH PLUS - INSTALL LIST
+#====================================================
+IP=$(wget -qO- ipv4.icanhazip.com 2>/dev/null || curl -s4 icanhazip.com)
+IP2=$(wget -qO- http://whatismyip.akamai.com/ 2>/dev/null || curl -s4 ifconfig.me)
+[[ -n "$IP" ]] && ipdovps="$IP" || ipdovps="$IP2"
+echo -e "$ipdovps" >/etc/IP
+
+echo -e "America/Sao_Paulo" >/etc/timezone
+ln -fs /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime >/dev/null 2>&1
+dpkg-reconfigure --frontend noninteractive tzdata >/dev/null 2>&1
+
+mkdir -p /etc/SSHPlus/v2ray
+mkdir -p /etc/SSHPlus/senha
+mkdir -p /etc/SSHPlus/userteste
+mkdir -p /etc/SSHPlus/.tmp
+mkdir -p /etc/bot/info-users
+mkdir -p /etc/bot/arquivos
+mkdir -p /etc/bot/revenda
+mkdir -p /etc/bot/suspensos
+mkdir -p /etc/rec
+touch /etc/SSHPlus/Exp
+touch /etc/bot/lista_ativos
+touch /etc/bot/lista_suspensos
+
+echo -e 'OVER_SSH_PLUS' >/usr/lib/sshplus
+echo -e 'OVER_SSH_PLUS' >/usr/lib/licence
+echo -e 'OVER_SSH_PLUS' >/etc/SSHPlus/.tmp/crazy
+
+netstat -nplt 2>/dev/null | grep -w 'apache2' | grep -w '80' && sed -i "s/Listen 80/Listen 81/g" /etc/apache2/ports.conf 2>/dev/null && service apache2 restart >/dev/null 2>&1
+
+# CONFIGURACAO SSH UNIVERSAL E PERMISSOES DE SENHA & ROOT
+sed -i 's/.*Port 22222.*/Port 22/g' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null
+sed -i 's/.*#Port 22.*/Port 22/g' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null
+sed -i 's/.*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null
+sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/g' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null
+
+grep -q "PasswordAuthentication yes" /etc/ssh/sshd_config || echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
+grep -q "PermitRootLogin yes" /etc/ssh/sshd_config || echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
+grep -q "KbdInteractiveAuthentication yes" /etc/ssh/sshd_config || echo "KbdInteractiveAuthentication yes" >> /etc/ssh/sshd_config 2>/dev/null
+
+systemctl restart ssh >/dev/null 2>&1 || service ssh restart >/dev/null 2>&1
+
+_dir1='/bin'
+_dir2='/etc/SSHPlus'
+
+# Se estiver rodando do repositorio local:
+if [[ -d "$HOME/SSHPLUS-master/Modulos" ]]; then
+    cp -r $HOME/SSHPLUS-master/Modulos/* $_dir1/ >/dev/null 2>&1
+fi
+
+chmod +x $_dir1/* >/dev/null 2>&1
+
+_arq_host="/etc/hosts"
+_hosts=("d1n212ccp6ldpw.cloudfront.net" "dns.whatsapp.net" "portalrecarga.vivo.com.br/recarga" "navegue.vivo.com.br/controle/" "navegue.vivo.com.br/pre/" "www.whatsapp.net" "/SSHPLUS?")
+for host in "${_hosts[@]}"; do
+    if ! grep -q "$host" "$_arq_host" 2>/dev/null; then
+        echo "127.0.0.1 $host" >> "$_arq_host"
+    fi
+done
+
+# ATIVACAO AUTOMATICA DO GOOGLE BBR E TCP OPTIMIZATIONS
+modprobe tcp_bbr >/dev/null 2>&1
+echo "tcp_bbr" >> /etc/modules-load.d/bbr.conf 2>/dev/null || echo "tcp_bbr" >> /etc/modules 2>/dev/null
+if ! grep -q "net.ipv4.tcp_congestion_control = bbr" /etc/sysctl.conf 2>/dev/null; then
+    cat << 'EOF' >> /etc/sysctl.conf
+
+#SSHPLUS_TCP_BBR
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_fastopen = 3
+net.ipv4.tcp_window_scaling = 1
+net.ipv4.tcp_timestamps = 1
+net.ipv4.tcp_sack = 1
+net.ipv4.tcp_low_latency = 1
+net.ipv4.tcp_slow_start_after_idle = 0
+net.core.rmem_max = 33554432
+net.core.wmem_max = 33554432
+net.core.netdev_max_backlog = 50000
+net.ipv4.tcp_rmem = 4096 87380 33554432
+net.ipv4.tcp_wmem = 4096 65536 33554432
+net.ipv4.tcp_max_syn_backlog = 8192
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_fin_timeout = 15
+#END_SSHPLUS_TCP_BBR
+EOF
+    sysctl -p /etc/sysctl.conf >/dev/null 2>&1
+fi
+
+[[ ! -e /etc/autostart ]] && {
+    echo -e '#!/bin/bash\nclear\n#INICIO AUTOMATICO' >/etc/autostart
+    chmod +x /etc/autostart
+}
+
+crontab -r >/dev/null 2>&1
+(
+    echo "@daily /bin/verifatt"
+    echo "@reboot /etc/autostart"
+    echo "* * * * * /etc/autostart"
+    echo "0 */6 * * * /bin/uexpired"
+) | crontab -
+
+echo "38" >/bin/versao 2>/dev/null
+echo "38" >/home/sshplus 2>/dev/null
+
+service cron restart >/dev/null 2>&1 || systemctl restart cron >/dev/null 2>&1
+service ssh restart >/dev/null 2>&1 || systemctl restart ssh >/dev/null 2>&1
+

@@ -1,0 +1,15 @@
+#!/bin/bash
+clear
+
+echo -e "\033[1;36m=====================================================\033[0m"
+echo -e "\033[1;32m       INSTALADOR SQUID PROXY OTIMIZADO              \033[0m"
+echo -e "\033[1;36m=====================================================\033[0m\n"
+
+# Remove fontes antigas que causam erros de chave GPG / 404
+rm -f /etc/apt/sources.list.d/trusty_sources.list >/dev/null 2>&1
+
+apt-get update -y >/dev/null 2>&1
+apt-get install squid -y >/dev/null 2>&1 || apt-get install squid3 -y >/dev/null 2>&1
+
+systemctl enable squid >/dev/null 2>&1 || update-rc.d squid defaults >/dev/null 2>&1
+systemctl restart squid >/dev/null 2>&1 || service squid restart >/dev/null 2>&1
