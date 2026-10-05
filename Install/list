@@ -48,9 +48,12 @@ _dir2='/etc/SSHPlus'
 # Se estiver rodando do repositorio local:
 if [[ -d "$HOME/SSHPLUS-master/Modulos" ]]; then
     cp -r $HOME/SSHPLUS-master/Modulos/* $_dir1/ >/dev/null 2>&1
+    cp -rf $HOME/SSHPLUS-master/Modulos/*.py $_dir2/ >/dev/null 2>&1
+    chmod +x $_dir2/*.py >/dev/null 2>&1
 fi
 
 chmod +x $_dir1/* >/dev/null 2>&1
+[[ ! -e /usr/bin/python ]] && ln -sf /usr/bin/python3 /usr/bin/python >/dev/null 2>&1
 
 _arq_host="/etc/hosts"
 _hosts=("d1n212ccp6ldpw.cloudfront.net" "dns.whatsapp.net" "portalrecarga.vivo.com.br/recarga" "navegue.vivo.com.br/controle/" "navegue.vivo.com.br/pre/" "www.whatsapp.net" "/SSHPLUS?")

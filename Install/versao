@@ -1,7 +1,7 @@
 VERSAO: 38
 
-ADICIONADO GERENCIADOR V2RAY
-
-@OMentalista
-
---[RECUSE IMITAÇŌES]--
+[+] Otimização de Rede Google BBR e TCP Buffers ativados
+[+] Proxies WebSocket, HTTP e OpenVPN migrados para Python 3
+[+] Atualizador Inteligente integrado ao GitHub (koquebr/OverSSH-Plus)
+[+] Compatibilidade universal com Ubuntu 20.04/22.04/24.04 e Debian 11/12
+[+] Preservação total de usuários (usuarios.db) e portas em updates

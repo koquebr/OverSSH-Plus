@@ -183,9 +183,13 @@ fi
 if [[ -d "$HOME/SSHPLUS-master/Modulos" ]]; then
     cp -r $HOME/SSHPLUS-master/Modulos/* /bin/ >/dev/null 2>&1
     chmod +x /bin/* >/dev/null 2>&1
+    cp -rf $HOME/SSHPLUS-master/Modulos/*.py /etc/SSHPlus/ >/dev/null 2>&1
+    chmod +x /etc/SSHPlus/*.py >/dev/null 2>&1
     cp $HOME/SSHPLUS-master/Install/list $_Ink/list >/dev/null 2>&1
     chmod +x $_Ink/list >/dev/null 2>&1
 fi
+
+[[ ! -e /usr/bin/python ]] && ln -sf /usr/bin/python3 /usr/bin/python >/dev/null 2>&1
 
 echo "/bin/menu" >/bin/h && chmod +x /bin/h >/dev/null 2>&1
 echo "OVER_SSH_PLUS" >/usr/lib/licence >/dev/null 2>&1
