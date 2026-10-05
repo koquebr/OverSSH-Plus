@@ -161,7 +161,7 @@ echo -e "\n\033[1;32mCONFIGURANDO MÓDULOS E SERVIÇOS...\033[0m"
 fun_bar 'otimize_python'
 
 # Configuração do Repositório
-DEFAULT_REPO_RAW="https://raw.githubusercontent.com/koquebr/SSHPLUS/master"
+DEFAULT_REPO_RAW="https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master"
 REPO_CONFIG="/etc/SSHPlus/repo.conf"
 if [[ -f "$REPO_CONFIG" ]]; then
     REPO_RAW=$(cat "$REPO_CONFIG" 2>/dev/null | tr -d '\r\n')
@@ -172,7 +172,7 @@ echo "$REPO_RAW" > /etc/SSHPlus/repo.conf
 # Instalação dos scripts locais ou remotos do GitHub
 if [[ ! -d "$HOME/SSHPLUS-master/Modulos" ]]; then
     mkdir -p "$HOME/SSHPLUS-master"
-    wget -qO /tmp/sshplus.zip "https://github.com/koquebr/SSHPLUS/archive/refs/heads/master.zip" || wget -qO /tmp/sshplus.zip "https://github.com/koquebr/SSHPLUS/archive/refs/heads/main.zip"
+    wget -qO /tmp/sshplus.zip "https://github.com/koquebr/OverSSH-Plus/archive/refs/heads/master.zip" || wget -qO /tmp/sshplus.zip "https://github.com/koquebr/OverSSH-Plus/archive/refs/heads/main.zip"
     if [[ -s /tmp/sshplus.zip ]]; then
         unzip -qo /tmp/sshplus.zip -d /tmp/sshplus_extract >/dev/null 2>&1
         cp -rf /tmp/sshplus_extract/SSHPLUS-*/* "$HOME/SSHPLUS-master/" >/dev/null 2>&1

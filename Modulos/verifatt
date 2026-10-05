@@ -1,7 +1,7 @@
 #!/bin/bash
 clear
 REPO_CONFIG="/etc/SSHPlus/repo.conf"
-DEFAULT_REPO="https://raw.githubusercontent.com/koquebr/SSHPLUS/master"
+DEFAULT_REPO="https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master"
 [[ -f "$REPO_CONFIG" ]] && REPO_RAW=$(cat "$REPO_CONFIG" 2>/dev/null | tr -d '\r\n')
 [[ -z "$REPO_RAW" ]] && REPO_RAW="$DEFAULT_REPO"
 

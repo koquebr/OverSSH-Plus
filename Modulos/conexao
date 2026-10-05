@@ -61,7 +61,7 @@ true && {
 			slowdns
 		} || {
 			cd $HOME
-			wget https://raw.githubusercontent.com/koquebr/SSHPLUS/master/Slowdns/install -o /dev/null
+			wget https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master/Slowdns/install -o /dev/null
 			chmod 777 install
 			./install
 		}
@@ -478,7 +478,7 @@ true && {
 	fun_v2rayins() {
 		clear
 		v2rayinst() {
-			source <(curl -sL https://raw.githubusercontent.com/koquebr/SSHPLUS/master/Modulos/v2ray)
+			source <(curl -sL https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master/Modulos/v2ray)
 			sleep 6
 		}
 		if netstat -tunlp | grep v2ray 1>/dev/null 2>/dev/null; then
@@ -797,9 +797,9 @@ true && {
 				cd /etc/stunnel/
 				rm -rf stunnel.conf
 				rm -rf stunnel.pem
-				wget https://raw.githubusercontent.com/koquebr/SSHPLUS/master/Install/cert
-				wget https://raw.githubusercontent.com/koquebr/SSHPLUS/master/Install/key
-				wget https://raw.githubusercontent.com/koquebr/SSHPLUS/master/Install/stunnel
+				wget https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master/Install/cert
+				wget https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master/Install/key
+				wget https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master/Install/stunnel
 				mv cert cert.pem
 				mv key key.pem
 				mv stunnel stunnel.conf
@@ -1301,9 +1301,9 @@ true && {
 			# Adquirindo easy-rsa
 			echo ""
 			fun_dep() {
-				wget -O ~/EasyRSA-3.0.1.tgz "https://github.com/koquebr/SSHPLUS/raw/master/Install/EasyRSA-3.0.1.tgz"
+				wget -O ~/EasyRSA-3.0.1.tgz "https://github.com/koquebr/OverSSH-Plus/raw/master/Install/EasyRSA-3.0.1.tgz"
 				[[ ! -e $HOME/EasyRSA-3.0.1.tgz ]] && {
-					wget -O ~/EasyRSA-3.0.1.tgz "https://github.com/koquebr/SSHPLUS/raw/master/Install/EasyRSA-3.0.1.tgz"
+					wget -O ~/EasyRSA-3.0.1.tgz "https://github.com/koquebr/OverSSH-Plus/raw/master/Install/EasyRSA-3.0.1.tgz"
 				}
 				tar xzf ~/EasyRSA-3.0.1.tgz -C ~/
 				mv ~/EasyRSA-3.0.1/ /etc/openvpn/
