@@ -1136,55 +1136,42 @@ menu_req_check() {
 
 menu() {
     deployed_status_check
-    echo -e "\n${Green}     Versão do script de implantação TSP e Trojan-Go / V2Ray: ${shell_version} ${Font}"
-    echo -e "——————————————————————Gerenciamento de implantação——————————————————————"
+    clear
+    echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo -e "\033[1;36m             >>> GERENCIADOR TROJAN-GO & TLS SHUNT <<<           \033[0m"
+    echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    
+    # Status
+    trojan_port=$(netstat -nplt 2>/dev/null | grep -i 'trojan-go' | awk '{print $4}' | cut -d: -f2 | sort -nu | xargs)
+    [[ -z "$trojan_port" ]] && trojan_port="Desativado"
+    echo -e "  \033[1;32mSTATUS TROJAN-GO:\033[0m \033[1;33m$trojan_stat\033[0m  |  \033[1;32mPORTA:\033[0m \033[1;36m$trojan_port\033[0m"
+    echo -e "\033[1;36m─────────────────────────────────────────────────────────────────\033[0m"
+
     if [[ $tsp_stat = "installed" ]]; then
-        echo -e "${Green}1.${Font}  ${Yellow}Desinstalar${Font} TLS-Shunt-Proxy"
+        echo -e "  \033[1;36m[01]\033[0m \033[1;37m•\033[0m \033[1;31mDESINSTALAR TLS-SHUNT-PROXY\033[0m"
     else
-        echo -e "${Green}1.${Font}  Instalar TLS-Shunt-Proxy（Certificado de gerenciamento de site e automático）"
+        echo -e "  \033[1;36m[01]\033[0m \033[1;37m•\033[0m \033[1;32mINSTALAR TLS-SHUNT-PROXY (SSL / Web)\033[0m"
     fi
-    systemctl is-active "tls-shunt-proxy" &>/dev/null &&
-        if [[ $trojan_stat = "none" ]]; then
-            echo -e "${Green}2.${Font}  Instalar proxy TCP / WS Trojan-Go"
-        else
-            echo -e "${Green}2.${Font}  ${Yellow}Desinstalar${Font} Proxy Trojan-Go TCP / WS"
-        fi
-    systemctl is-active "tls-shunt-proxy" &>/dev/null &&
-        if [[ $v2ray_stat = "none" ]]; then
-            echo -e "${Green}3.${Font} Instalar proxy TCP / WS V2Ray"
-        else
-            echo -e "${Green}3.${Font}  ${Yellow}Desinstalar${Font} Proxy TCP / WS V2Ray"
-        fi
-    systemctl is-active "docker" &>/dev/null &&
-        if [[ $watchtower_stat = "none" ]]; then
-            echo -e "${Green}4.${Font}  Instalar WatchTower (atualizar automaticamente o contêiner)"
-        else
-            echo -e "${Green}4.${Font}  ${Yellow}Desinstalar${Font} WatchTower (atualiza automaticamente o contêiner)"
-        fi
-    systemctl is-active "docker" &>/dev/null &&
-        if [[ $portainer_stat = "none" ]]; then
-            echo -e "${Green}5.${Font}  Instalar Portainer (Web Management Container)"
-        else
-            echo -e "${Green}5.${Font}  ${Yellow}Desinstalar${Font} Portainer (contêiner de gerenciamento da Web)"
-        fi
-    systemctl is-active "tls-shunt-proxy" &>/dev/null &&
-        echo -e "——————————————————————Modificação de configuração——————————————————————" &&
-        echo -e "${Green}6.${Font}  Modificar porta TLS / nome de domínio" &&
-        [[ $trojan_stat = "installed" && -f ${trojan_conf} ]] && echo -e "${Green}7.${Font}  Modificar a configuração do proxy Trojan-Go"
-    systemctl is-active "tls-shunt-proxy" &>/dev/null &&
-        [[ $v2ray_stat = "installed" && -f ${v2ray_conf} ]] && echo -e "${Green}8.${Font}  Modificar a configuração do proxy V2Ray"
-    systemctl is-active "tls-shunt-proxy" &>/dev/null &&
-        echo -e "——————————————————————Ver informação——————————————————————" &&
-        echo -e "${Green}9.${Font}  Ver informações de configuração" &&
-        [[ $trojan_stat = "installed" || $v2ray_stat = "installed" ]] && echo -e "${Green}10.${Font} Ver link compartilhar / assinar"
-    echo -e "——————————————————————Gestão Diversa——————————————————————"
-    [ -f ${tsp_conf} ] && echo -e "${Green}11.${Font} Atualizar plataforma base TLS-Shunt-Proxy / Docker" &&
-        echo -e "${Green}12.${Font} ${Yellow}Desinstalar${Font} Todos os componentes instalados"
-    echo -e "${Green}13.${Font} Instale o script 4 em 1 BBR Rui Su"
-    echo -e "${Green}14.${Font} Execute o script de teste SuperSpeed"
-    echo -e "${Green}0.${Font}  Sair do script "
-    echo -e "————————————————————————————————————————————————————\n"
-    read -rp "Por favor insira o número：" menu_num
+
+    if [[ $trojan_stat = "none" ]]; then
+        echo -e "  \033[1;36m[02]\033[0m \033[1;37m•\033[0m \033[1;32mINSTALAR TROJAN-GO (TCP / WS)\033[0m"
+    else
+        echo -e "  \033[1;36m[02]\033[0m \033[1;37m•\033[0m \033[1;31mDESINSTALAR TROJAN-GO\033[0m"
+    fi
+
+    if [[ $v2ray_stat = "none" ]]; then
+        echo -e "  \033[1;36m[03]\033[0m \033[1;37m•\033[0m \033[1;32mINSTALAR PROXY V2RAY\033[0m"
+    else
+        echo -e "  \033[1;36m[03]\033[0m \033[1;37m•\033[0m \033[1;31mDESINSTALAR PROXY V2RAY\033[0m"
+    fi
+
+    echo -e "  \033[1;36m[04]\033[0m \033[1;37m•\033[0m \033[1;33mMODIFICAR PORTA TLS / DOMÍNIO\033[0m"
+    echo -e "  \033[1;36m[05]\033[0m \033[1;37m•\033[0m \033[1;33mVER CONFIGURAÇÕES & DADOS DE ACESSO\033[0m"
+    echo -e "  \033[1;36m[06]\033[0m \033[1;37m•\033[0m \033[1;33mVER LINK DE COMPARTILHAMENTO / QRCODE\033[0m"
+    echo -e "  \033[1;36m[07]\033[0m \033[1;37m•\033[0m \033[1;31mDESINSTALAR TODOS OS COMPONENTES\033[0m"
+    echo -e "  \033[1;36m[00]\033[0m \033[1;37m•\033[0m \033[1;35mVOLTAR AO MENU PRINCIPAL\033[0m"
+    echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    read -rp "Digite a opção desejada: " menu_num
     case "$menu_num" in
     1)
         if [[ $tsp_stat = "installed" ]]; then

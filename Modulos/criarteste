@@ -1,73 +1,83 @@
 #!/bin/bash
-IP=$(cat /etc/IP)
-if [ ! -d /etc/SSHPlus/userteste ]; then
-mkdir /etc/SSHPlus/userteste
-fi
-tput setaf 7 ; tput setab 4 ; tput bold ; printf '%30s%s%-15s\n' "Criar usuario teste" ; tput sgr0
-echo ""
-[ "$(ls -A /etc/SSHPlus/userteste)" ] && echo -e "\033[1;32mTeste Ativo!\033[1;37m" || echo -e "\033[1;31mNenhum test ativo!\033[0m"
-echo ""
-for testeson in $(ls /etc/SSHPlus/userteste |sort |sed 's/.sh//g')
-do
-echo "$testeson"
-done
-echo ""
-echo -ne "\033[1;32mNome do usuario\033[1;37m: "; read nome
-if [[ -z $nome ]]
-then
-echo ""
-tput setaf 7 ; tput setab 1 ; tput bold ; echo "" ; echo "Nome vazio ou invalido." ; echo "" ; tput sgr0
-	exit 1
-fi
-awk -F : ' { print $1 }' /etc/passwd > /tmp/users 
-if grep -Fxq "$nome" /tmp/users
-then
-	tput setaf 7 ; tput setab 1 ; tput bold ; echo "" ; echo "Este usuário já existe." ; echo "" ; tput sgr0
-	exit 1
-fi
-echo -ne "\033[1;32mSenha\033[1;37m: "; read pass
-if [[ -z $pass ]]
-then
-echo ""
-tput setaf 7 ; tput setab 1 ; tput bold ; echo "" ; echo "Senha vazia ou invalida." ; echo "" ; tput sgr0
-	exit 1
-fi
-echo -ne "\033[1;32mLimite\033[1;37m: "; read limit
-if [[ -z $limit ]]
-then
-echo ""
-tput setaf 7 ; tput setab 1 ; tput bold ; echo "" ; echo "Limite vazio ou invalido." ; echo "" ; tput sgr0
-	exit 1
-fi
-echo -ne "\033[1;32mMinutos \033[1;33m(\033[1;31mEx: \033[1;37m60\033[1;33m)\033[1;37m: "; read u_temp
-if [[ -z $limit ]]
-then
-echo ""
-tput setaf 7 ; tput setab 1 ; tput bold ; echo "" ; echo "Limite vazio ou invalido." ; echo "" ; tput sgr0
-	exit 1
-fi
-useradd -M -s /bin/false $nome
-(echo $pass;echo $pass) |passwd $nome > /dev/null 2>&1
-echo "$pass" > /etc/SSHPlus/senha/$nome
-echo "$nome $limit" >> /root/usuarios.db
-echo "#!/bin/bash
-pkill -f "$nome"
-userdel --force $nome
-grep -v ^$nome[[:space:]] /root/usuarios.db > /tmp/ph ; cat /tmp/ph > /root/usuarios.db
-rm /etc/SSHPlus/senha/$nome > /dev/null 2>&1
-rm -rf /etc/SSHPlus/userteste/$nome.sh
-exit" > /etc/SSHPlus/userteste/$nome.sh
-chmod +x /etc/SSHPlus/userteste/$nome.sh
-at -f /etc/SSHPlus/userteste/$nome.sh now + $u_temp min > /dev/null 2>&1
 clear
-echo -e "\E[44;1;37m     Usuario Teste Criado     \E[0m"
-echo ""
-echo -e "\033[1;32mIP:\033[1;37m $IP"
-echo -e "\033[1;32mUsuario:\033[1;37m $nome"
-echo -e "\033[1;32mSenha:\033[1;37m $pass"
-echo -e "\033[1;32mLimite:\033[1;37m $limit"
-echo -e "\033[1;32mValidade:\033[1;37m $u_temp Minutos"
-echo ""
-echo -e "\033[1;33mApos o tempo definido o usuario"
-echo -e "\033[1;32m$nome \033[1;33msera desconectado e deletado.\033[0m"
-exit
+
+C_RESET="\033[0m"
+C_CYAN="\033[1;36m"
+C_GREEN="\033[1;32m"
+C_YELLOW="\033[1;33m"
+C_RED="\033[1;31m"
+C_WHITE="\033[1;37m"
+
+IP=$(cat /etc/IP 2>/dev/null || curl -s4 icanhazip.com)
+mkdir -p /etc/SSHPlus/userteste /etc/SSHPlus/senha >/dev/null 2>&1
+
+echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+echo -e "${C_CYAN}              >>> CRIAR USUÁRIO TEMPORÁRIO (TESTE) <<<           ${C_RESET}"
+echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+
+testes_ativos=$(ls /etc/SSHPlus/userteste 2>/dev/null | wc -l)
+if [[ "$testes_ativos" -gt 0 ]]; then
+    echo -e "  ${C_GREEN}Testes Ativos (${testes_ativos}):${C_RESET} ${C_YELLOW}$(ls /etc/SSHPlus/userteste | sed 's/.sh//g' | xargs)${C_RESET}\n"
+else
+    echo -e "  ${C_WHITE}Nenhum usuário teste ativo no momento.${C_RESET}\n"
+fi
+
+echo -ne "${C_GREEN}Nome do usuário teste: ${C_WHITE}"
+read -r nome
+if [[ -z "$nome" || ! "$nome" =~ ^[a-zA-Z0-9_]+$ ]]; then
+    echo -e "\n${C_RED}[!] Nome de usuário vazio ou com caracteres inválidos.${C_RESET}\n"
+    sleep 2s
+    menu
+    exit 1
+fi
+
+if grep -qw "$nome" /etc/passwd 2>/dev/null; then
+    echo -e "\n${C_RED}[!] Este usuário já existe no sistema.${C_RESET}\n"
+    sleep 2s
+    menu
+    exit 1
+fi
+
+echo -ne "${C_GREEN}Senha para o teste: ${C_WHITE}"
+read -r pass
+[[ -z "$pass" ]] && pass="1234"
+
+echo -ne "${C_GREEN}Limite de conexões simultâneas [1]: ${C_WHITE}"
+read -r limit
+[[ -z "$limit" ]] && limit="1"
+
+echo -ne "${C_GREEN}Duração em minutos [Ex: 60]: ${C_WHITE}"
+read -r u_temp
+[[ -z "$u_temp" ]] && u_temp="60"
+
+useradd -M -s /bin/false "$nome" >/dev/null 2>&1
+(echo "$pass"; echo "$pass") | passwd "$nome" >/dev/null 2>&1
+echo "$pass" > "/etc/SSHPlus/senha/$nome"
+echo "$nome $limit" >> /root/usuarios.db
+
+cat << EOF > "/etc/SSHPlus/userteste/$nome.sh"
+#!/bin/bash
+pkill -u "$nome" >/dev/null 2>&1
+userdel --force "$nome" >/dev/null 2>&1
+sed -i "/^$nome[[:space:]]/d" /root/usuarios.db 2>/dev/null
+rm -f "/etc/SSHPlus/senha/$nome" "/etc/SSHPlus/userteste/$nome.sh" >/dev/null 2>&1
+exit 0
+EOF
+
+chmod +x "/etc/SSHPlus/userteste/$nome.sh"
+at -f "/etc/SSHPlus/userteste/$nome.sh" "now + $u_temp min" >/dev/null 2>&1
+
+clear
+echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+echo -e "${C_GREEN}            ✓ USUÁRIO TESTE CRIADO COM SUCESSO!                  ${C_RESET}"
+echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+echo -e "  ${C_YELLOW}IP / Host:${C_RESET}     ${C_WHITE}$IP${C_RESET}"
+echo -e "  ${C_YELLOW}Usuário:${C_RESET}       ${C_WHITE}$nome${C_RESET}"
+echo -e "  ${C_YELLOW}Senha:${C_RESET}         ${C_WHITE}$pass${C_RESET}"
+echo -e "  ${C_YELLOW}Limite:${C_RESET}        ${C_WHITE}$limit conexão(ões)${C_RESET}"
+echo -e "  ${C_YELLOW}Validade:${C_RESET}      ${C_GREEN}$u_temp minutos${C_RESET}\n"
+echo -e "  ${C_WHITE}Após o tempo definido, o usuário será desconectado e apagado.${C_RESET}"
+echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
+
+echo -ne "${C_YELLOW}Pressione [ENTER] para voltar ao menu: ${C_RESET}"; read -r
+menu
