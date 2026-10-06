@@ -1,6 +1,6 @@
 #!/bin/bash
 #====================================================
-# OVER SSH PLUS - ATUALIZADOR INTELIGENTE VIA GITHUB
+# OVER SSH PLUS - ATUALIZADOR OFICIAL VIA GITHUB
 #====================================================
 clear
 
@@ -13,16 +13,66 @@ C_RED="\033[1;31m"
 C_WHITE="\033[1;37m"
 C_PURPLE="\033[1;35m"
 
-DEFAULT_REPO_MASTER="https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master"
-DEFAULT_REPO_MAIN="https://raw.githubusercontent.com/koquebr/OverSSH-Plus/main"
+DEFAULT_REPO="koquebr/OverSSH-Plus"
+DEFAULT_RAW_MAIN="https://raw.githubusercontent.com/koquebr/OverSSH-Plus/main"
+DEFAULT_RAW_MASTER="https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master"
 REPO_CONFIG="/etc/SSHPlus/repo.conf"
 
 mkdir -p /etc/SSHPlus >/dev/null 2>&1
 
-if [[ -f "$REPO_CONFIG" ]]; then
-    REPO_RAW=$(cat "$REPO_CONFIG" 2>/dev/null | tr -d '\r\n')
-fi
-[[ -z "$REPO_RAW" ]] && REPO_RAW="$DEFAULT_REPO_MASTER"
+normalize_repo() {
+    local input="$1"
+    input=$(echo "$input" | tr -d '\r\n ' | sed 's/\.git$//' | sed 's#/*$##')
+    
+    if [[ -z "$input" || "$input" =~ SSHPLUS || "$input" =~ crazy_ssh ]]; then
+        input="https://github.com/koquebr/OverSSH-Plus"
+    fi
+
+    # Extrai usuario/repo se for url do github.com
+    if [[ "$input" =~ github\.com/([^/]+)/([^/]+) ]]; then
+        local user="${BASH_REMATCH[1]}"
+        local repo="${BASH_REMATCH[2]}"
+        repo=$(echo "$repo" | sed 's#/.*##')
+        REPO_USER_REPO="${user}/${repo}"
+        REPO_RAW_MAIN="https://raw.githubusercontent.com/${user}/${repo}/main"
+        REPO_RAW_MASTER="https://raw.githubusercontent.com/${user}/${repo}/master"
+        REPO_ZIP_MAIN="https://github.com/${user}/${repo}/archive/refs/heads/main.zip"
+        REPO_ZIP_MASTER="https://github.com/${user}/${repo}/archive/refs/heads/master.zip"
+        REPO_DISPLAY="https://github.com/${user}/${repo}"
+    elif [[ "$input" =~ raw\.githubusercontent\.com/([^/]+)/([^/]+) ]]; then
+        local user="${BASH_REMATCH[1]}"
+        local repo="${BASH_REMATCH[2]}"
+        repo=$(echo "$repo" | sed 's#/.*##')
+        REPO_USER_REPO="${user}/${repo}"
+        REPO_RAW_MAIN="https://raw.githubusercontent.com/${user}/${repo}/main"
+        REPO_RAW_MASTER="https://raw.githubusercontent.com/${user}/${repo}/master"
+        REPO_ZIP_MAIN="https://github.com/${user}/${repo}/archive/refs/heads/main.zip"
+        REPO_ZIP_MASTER="https://github.com/${user}/${repo}/archive/refs/heads/master.zip"
+        REPO_DISPLAY="https://github.com/${user}/${repo}"
+    elif [[ "$input" =~ ^([^/]+)/([^/]+)$ ]]; then
+        local user="${BASH_REMATCH[1]}"
+        local repo="${BASH_REMATCH[2]}"
+        REPO_USER_REPO="${user}/${repo}"
+        REPO_RAW_MAIN="https://raw.githubusercontent.com/${user}/${repo}/main"
+        REPO_RAW_MASTER="https://raw.githubusercontent.com/${user}/${repo}/master"
+        REPO_ZIP_MAIN="https://github.com/${user}/${repo}/archive/refs/heads/main.zip"
+        REPO_ZIP_MASTER="https://github.com/${user}/${repo}/archive/refs/heads/master.zip"
+        REPO_DISPLAY="https://github.com/${user}/${repo}"
+    else
+        REPO_USER_REPO="$DEFAULT_REPO"
+        REPO_RAW_MAIN="$DEFAULT_RAW_MAIN"
+        REPO_RAW_MASTER="$DEFAULT_RAW_MASTER"
+        REPO_ZIP_MAIN="https://github.com/koquebr/OverSSH-Plus/archive/refs/heads/main.zip"
+        REPO_ZIP_MASTER="https://github.com/koquebr/OverSSH-Plus/archive/refs/heads/master.zip"
+        REPO_DISPLAY="https://github.com/koquebr/OverSSH-Plus"
+    fi
+}
+
+# Carregar e validar repo configurado
+stored_repo=""
+[[ -f "$REPO_CONFIG" ]] && stored_repo=$(cat "$REPO_CONFIG" 2>/dev/null)
+normalize_repo "$stored_repo"
+echo "$REPO_DISPLAY" > "$REPO_CONFIG"
 
 fun_bar() {
     comando[0]="$1"
@@ -53,48 +103,53 @@ fun_bar() {
 
 fun_verif_att() {
     rm -f /tmp/att /tmp/versao_remote >/dev/null 2>&1
-    curl -sSL --connect-timeout 8 "${REPO_RAW}/Install/versao" -o /tmp/att >/dev/null 2>&1
+    
+    # 1. Tenta baixar de main
+    curl -sSL --connect-timeout 8 "${REPO_RAW_MAIN}/Install/versao" -o /tmp/att >/dev/null 2>&1 || \
+    wget --timeout=8 -q -O /tmp/att "${REPO_RAW_MAIN}/Install/versao" >/dev/null 2>&1
+
+    # 2. Se falhar, tenta de master
     if [[ ! -s /tmp/att ]]; then
-        curl -sSL --connect-timeout 8 "${DEFAULT_REPO_MAIN}/Install/versao" -o /tmp/att >/dev/null 2>&1
+        curl -sSL --connect-timeout 8 "${REPO_RAW_MASTER}/Install/versao" -o /tmp/att >/dev/null 2>&1 || \
+        wget --timeout=8 -q -O /tmp/att "${REPO_RAW_MASTER}/Install/versao" >/dev/null 2>&1
     fi
+
+    # 3. Fallback oficial principal
     if [[ ! -s /tmp/att ]]; then
-        wget --timeout=8 -q -O /tmp/att "${REPO_RAW}/Install/versao" >/dev/null 2>&1
-    fi
-    if [[ ! -s /tmp/att ]]; then
-        wget --timeout=8 -q -O /tmp/att "${DEFAULT_REPO_MAIN}/Install/versao" >/dev/null 2>&1
+        curl -sSL --connect-timeout 8 "${DEFAULT_RAW_MAIN}/Install/versao" -o /tmp/att >/dev/null 2>&1 || \
+        curl -sSL --connect-timeout 8 "${DEFAULT_RAW_MASTER}/Install/versao" -o /tmp/att >/dev/null 2>&1
     fi
 }
 
 config_repo() {
     clear
     echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}       CONFIGURAR REPOSITÓRIO GITHUB PRÓPRIO        ${C_RESET}"
+    echo -e "${C_GREEN}       CONFIGURAR REPOSITÓRIO GITHUB DO SCRIPT       ${C_RESET}"
     echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
-    echo -e "${C_WHITE}Repositório atual:${C_RESET} ${C_YELLOW}${REPO_RAW}${C_RESET}\n"
-    echo -e "${C_WHITE}Exemplos de entrada:${C_RESET}"
+    echo -e "${C_WHITE}Repositório atual:${C_RESET} ${C_YELLOW}${REPO_DISPLAY}${C_RESET}\n"
+    echo -e "${C_WHITE}Exemplos aceitos:${C_RESET}"
+    echo -e "  • ${C_GREEN}https://github.com/koquebr/OverSSH-Plus${C_RESET}"
     echo -e "  • ${C_GREEN}koquebr/OverSSH-Plus${C_RESET}"
     echo -e "  • ${C_GREEN}https://raw.githubusercontent.com/usuario/repo/main${C_RESET}\n"
-    echo -ne "${C_CYAN}Digite o Novo Repositório [ENTER para cancelar]: ${C_WHITE}"
+    echo -ne "${C_CYAN}Digite o link do repositório [ENTER para manter padrão]: ${C_WHITE}"
     read -r novo_repo
     
     if [[ -n "$novo_repo" ]]; then
-        if [[ "$novo_repo" =~ ^https?:// ]]; then
-            REPO_RAW="$novo_repo"
-        else
-            REPO_RAW="https://raw.githubusercontent.com/${novo_repo}/master"
-        fi
-        echo "$REPO_RAW" > "$REPO_CONFIG"
-        echo -e "\n${C_GREEN}[✓] Repositório atualizado com sucesso:${C_RESET} ${C_YELLOW}$REPO_RAW${C_RESET}"
+        normalize_repo "$novo_repo"
+        echo "$REPO_DISPLAY" > "$REPO_CONFIG"
+        echo -e "\n${C_GREEN}[✓] Repositório atualizado para:${C_RESET} ${C_YELLOW}$REPO_DISPLAY${C_RESET}"
         sleep 2s
     fi
 }
 
 while true; do
     clear
+    normalize_repo "$(cat "$REPO_CONFIG" 2>/dev/null)"
+    
     echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
     echo -e "${C_GREEN}         ATUALIZADOR OVER SSH PLUS MANAGER          ${C_RESET}"
     echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_WHITE}Repositório Ativo: ${C_YELLOW}${REPO_RAW}${C_RESET}\n"
+    echo -e "${C_WHITE}Repositório Ativo: ${C_YELLOW}${REPO_DISPLAY}${C_RESET}\n"
     echo -e "  ${C_CYAN}[01]${C_RESET} ${C_WHITE}•${C_RESET} ${C_GREEN}BUSCAR E APLICAR ATUALIZAÇÕES AGORA${C_RESET}"
     echo -e "  ${C_CYAN}[02]${C_RESET} ${C_WHITE}•${C_RESET} ${C_YELLOW}ALTERAR REPOSITÓRIO GITHUB (LINK/FORK)${C_RESET}"
     echo -e "  ${C_CYAN}[00]${C_RESET} ${C_WHITE}•${C_RESET} ${C_RED}VOLTAR AO MENU PRINCIPAL${C_RESET}"
@@ -104,18 +159,18 @@ while true; do
     
     case $menu_att in
         1|01)
-            echo -e "\n   ${C_YELLOW}VERIFICANDO ATUALIZAÇÕES NO GITHUB...${C_RESET}\n"
+            echo -e "\n   ${C_YELLOW}VERIFICANDO ATUALIZAÇÕES NO GITHUB (${REPO_DISPLAY})...${C_RESET}\n"
             fun_bar 'fun_verif_att'
 
             if [[ ! -s "/tmp/att" ]]; then
                 echo -e "\n${C_RED}[ERRO] Não foi possível consultar o repositório remoto!${C_RESET}"
                 echo -e "${C_WHITE}Verifique sua conexão ou se o repositório está acessível:${C_RESET}"
-                echo -e "${C_YELLOW}${REPO_RAW}/Install/versao${C_RESET}\n"
+                echo -e "${C_YELLOW}${REPO_DISPLAY}${C_RESET}\n"
                 echo -ne "${C_YELLOW}Pressione [ENTER] para continuar: ${C_RESET}"; read -r
                 continue
             fi
 
-            # Obter versao local e remota de forma semantica
+            # Obter versao local e remota
             [[ ! -f /bin/versao ]] && echo "VERSAO: 0.0.0.1" > /bin/versao
             vrs_local=$(head -n 1 /bin/versao 2>/dev/null | tr -cd '0-9.')
             vrs_remota=$(head -n 1 /tmp/att 2>/dev/null | tr -cd '0-9.')
@@ -158,23 +213,53 @@ while true; do
                 fi
             fi
 
-            echo -e "\n${C_GREEN}[+] Baixando e aplicando todos os novos arquivos...${C_RESET}\n"
+            echo -e "\n${C_GREEN}[+] Baixando e atualizando todos os módulos do repositório...${C_RESET}\n"
 
             fun_aplicar_att() {
-                # Baixar script instalador Plus atualizado
-                curl -sSL --connect-timeout 10 "${REPO_RAW}/Plus" -o /root/Plus_att >/dev/null 2>&1 || \
-                curl -sSL --connect-timeout 10 "${DEFAULT_REPO_MAIN}/Plus" -o /root/Plus_att >/dev/null 2>&1 || \
-                wget -q -O /root/Plus_att "${REPO_RAW}/Plus" >/dev/null 2>&1
+                which unzip >/dev/null 2>&1 || apt-get install unzip -y >/dev/null 2>&1
 
-                if [[ -s /root/Plus_att ]]; then
-                    chmod +x /root/Plus_att
-                    export OVER_UPDATE=1
-                    bash /root/Plus_att >/dev/null 2>&1
-                    rm -f /root/Plus_att >/dev/null 2>&1
+                mkdir -p "$HOME/SSHPLUS-master"
+                rm -rf /tmp/sshplus_extract /tmp/sshplus.zip >/dev/null 2>&1
+                mkdir -p /tmp/sshplus_extract
+
+                # Baixa o zip da branch main ou master
+                wget -qO /tmp/sshplus.zip "$REPO_ZIP_MAIN" || \
+                wget -qO /tmp/sshplus.zip "$REPO_ZIP_MASTER" || \
+                curl -sSL -o /tmp/sshplus.zip "$REPO_ZIP_MAIN" || \
+                curl -sSL -o /tmp/sshplus.zip "$REPO_ZIP_MASTER"
+
+                if [[ -s /tmp/sshplus.zip ]]; then
+                    unzip -qo /tmp/sshplus.zip -d /tmp/sshplus_extract >/dev/null 2>&1
+                    cp -rf /tmp/sshplus_extract/*/* "$HOME/SSHPLUS-master/" >/dev/null 2>&1
+                    rm -rf /tmp/sshplus.zip /tmp/sshplus_extract >/dev/null 2>&1
                 fi
-                cp -f /tmp/att /bin/versao >/dev/null 2>&1
-                cp -f /tmp/att /etc/SSHPlus/versao >/dev/null 2>&1
+
+                # Instala os módulos atualizados em /bin e /etc/SSHPlus
+                if [[ -d "$HOME/SSHPLUS-master/Modulos" ]]; then
+                    cp -rf $HOME/SSHPLUS-master/Modulos/* /bin/ >/dev/null 2>&1
+                    chmod +x /bin/* >/dev/null 2>&1
+                    cp -rf $HOME/SSHPLUS-master/Modulos/*.py /etc/SSHPlus/ >/dev/null 2>&1
+                    chmod +x /etc/SSHPlus/*.py >/dev/null 2>&1
+                fi
+
+                # Instala binario badvpn
+                if [[ -f "$HOME/SSHPLUS-master/Install/badvpn-udpgw" ]]; then
+                    cp -f "$HOME/SSHPLUS-master/Install/badvpn-udpgw" /bin/badvpn-udpgw >/dev/null 2>&1
+                    cp -f "$HOME/SSHPLUS-master/Install/badvpn-udpgw" /usr/bin/badvpn-udpgw >/dev/null 2>&1
+                    chmod +x /bin/badvpn-udpgw /usr/bin/badvpn-udpgw >/dev/null 2>&1
+                fi
+
+                # Atualiza versao
+                if [[ -f "$HOME/SSHPLUS-master/Install/versao" ]]; then
+                    cp -f "$HOME/SSHPLUS-master/Install/versao" /bin/versao >/dev/null 2>&1
+                    cp -f "$HOME/SSHPLUS-master/Install/versao" /etc/SSHPlus/versao >/dev/null 2>&1
+                else
+                    cp -f /tmp/att /bin/versao >/dev/null 2>&1
+                    cp -f /tmp/att /etc/SSHPlus/versao >/dev/null 2>&1
+                fi
                 chmod +x /bin/versao >/dev/null 2>&1
+
+                echo "/bin/menu" > /bin/h && chmod +x /bin/h >/dev/null 2>&1
             }
 
             fun_bar 'fun_aplicar_att'
@@ -182,6 +267,7 @@ while true; do
             rm -f /tmp/att >/dev/null 2>&1
             echo -e "\n${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
             echo -e "${C_GREEN}  ✓ OVER SSH PLUS ATUALIZADO COM SUCESSO!           ${C_RESET}"
+            echo -e "${C_WHITE}  Repositório: ${C_YELLOW}${REPO_DISPLAY}${C_RESET}"
             echo -e "${C_WHITE}  Versão em Execução: ${C_GREEN}v$(head -n1 /bin/versao 2>/dev/null | tr -cd '0-9.')${C_RESET}"
             echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
             echo -ne "${C_YELLOW}Pressione [ENTER] para reiniciar o menu: ${C_RESET}"; read -r

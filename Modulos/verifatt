@@ -2,25 +2,42 @@
 #====================================================
 # OVER SSH PLUS - VERIFICADOR DE ATUALIZAÇÃO GITHUB
 #====================================================
-clear
 REPO_CONFIG="/etc/SSHPlus/repo.conf"
-DEFAULT_REPO_MASTER="https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master"
-DEFAULT_REPO_MAIN="https://raw.githubusercontent.com/koquebr/OverSSH-Plus/main"
+DEFAULT_REPO="koquebr/OverSSH-Plus"
 
-REPO_RAW=""
-[[ -f "$REPO_CONFIG" ]] && REPO_RAW=$(cat "$REPO_CONFIG" 2>/dev/null | tr -d '\r\n')
-[[ -z "$REPO_RAW" ]] && REPO_RAW="$DEFAULT_REPO_MASTER"
+stored_repo=""
+[[ -f "$REPO_CONFIG" ]] && stored_repo=$(cat "$REPO_CONFIG" 2>/dev/null | tr -d '\r\n ')
+
+if [[ -z "$stored_repo" || "$stored_repo" =~ SSHPLUS || "$stored_repo" =~ crazy_ssh ]]; then
+    stored_repo="https://github.com/koquebr/OverSSH-Plus"
+fi
+
+if [[ "$stored_repo" =~ github\.com/([^/]+)/([^/]+) ]]; then
+    user="${BASH_REMATCH[1]}"
+    repo="${BASH_REMATCH[2]}"
+    repo=$(echo "$repo" | sed 's#/.*##')
+elif [[ "$stored_repo" =~ raw\.githubusercontent\.com/([^/]+)/([^/]+) ]]; then
+    user="${BASH_REMATCH[1]}"
+    repo="${BASH_REMATCH[2]}"
+    repo=$(echo "$repo" | sed 's#/.*##')
+elif [[ "$stored_repo" =~ ^([^/]+)/([^/]+)$ ]]; then
+    user="${BASH_REMATCH[1]}"
+    repo="${BASH_REMATCH[2]}"
+else
+    user="koquebr"
+    repo="OverSSH-Plus"
+fi
+
+RAW_MAIN="https://raw.githubusercontent.com/${user}/${repo}/main/Install/versao"
+RAW_MASTER="https://raw.githubusercontent.com/${user}/${repo}/master/Install/versao"
 
 rm -f /tmp/att /tmp/versao_remote >/dev/null 2>&1
 
-# Tenta baixar do branch configurado, master ou main
-curl -sSL --connect-timeout 5 "${REPO_RAW}/Install/versao" -o /tmp/versao_remote >/dev/null 2>&1
-if [[ ! -s /tmp/versao_remote ]]; then
-    curl -sSL --connect-timeout 5 "${DEFAULT_REPO_MAIN}/Install/versao" -o /tmp/versao_remote >/dev/null 2>&1
-fi
-if [[ ! -s /tmp/versao_remote ]]; then
-    wget -q -T 5 -O /tmp/versao_remote "${REPO_RAW}/Install/versao" >/dev/null 2>&1
-fi
+# Tenta baixar do branch main ou master
+curl -sSL --connect-timeout 5 "$RAW_MAIN" -o /tmp/versao_remote >/dev/null 2>&1 || \
+curl -sSL --connect-timeout 5 "$RAW_MASTER" -o /tmp/versao_remote >/dev/null 2>&1 || \
+wget -q -T 5 -O /tmp/versao_remote "$RAW_MAIN" >/dev/null 2>&1 || \
+wget -q -T 5 -O /tmp/versao_remote "$RAW_MASTER" >/dev/null 2>&1
 
 if [[ -s "/tmp/versao_remote" ]]; then
     vrs_local=$(head -n1 /bin/versao 2>/dev/null | tr -cd '0-9.')
