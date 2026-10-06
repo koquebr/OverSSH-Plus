@@ -9,7 +9,19 @@ echo -e "\033[1;36m=====================================================\033[0m\
 rm -f /etc/apt/sources.list.d/trusty_sources.list >/dev/null 2>&1
 
 apt-get update -y >/dev/null 2>&1
-apt-get install squid -y >/dev/null 2>&1 || apt-get install squid3 -y >/dev/null 2>&1
+DEBIAN_FRONTEND=noninteractive apt-get install squid -y >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install squid3 -y >/dev/null 2>&1
 
-systemctl enable squid >/dev/null 2>&1 || update-rc.d squid defaults >/dev/null 2>&1
-systemctl restart squid >/dev/null 2>&1 || service squid restart >/dev/null 2>&1
+# Criação de diretórios essenciais e permissões
+mkdir -p /var/log/squid /var/spool/squid /var/run/squid /var/run/squid3 /etc/squid /etc/squid3 >/dev/null 2>&1
+chown -R proxy:proxy /var/log/squid /var/spool/squid /var/run/squid /var/run/squid3 2>/dev/null || chown -R squid:squid /var/log/squid /var/spool/squid 2>/dev/null
+
+# Inicialização da estrutura de cache se suportado
+squid -z >/dev/null 2>&1 || squid3 -z >/dev/null 2>&1
+
+# Desmascarar e habilitar serviços
+systemctl unmask squid >/dev/null 2>&1
+systemctl unmask squid3 >/dev/null 2>&1
+systemctl enable squid >/dev/null 2>&1 || systemctl enable squid3 >/dev/null 2>&1 || update-rc.d squid defaults >/dev/null 2>&1
+
+# Iniciar serviço
+systemctl restart squid >/dev/null 2>&1 || systemctl restart squid3 >/dev/null 2>&1 || service squid restart >/dev/null 2>&1 || service squid3 restart >/dev/null 2>&1 || /etc/init.d/squid restart >/dev/null 2>&1 || /etc/init.d/squid3 restart >/dev/null 2>&1

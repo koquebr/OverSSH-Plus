@@ -39,14 +39,22 @@ fun_bar() {
 }
 
 verif_badvpn_bin() {
+    which screen >/dev/null 2>&1 || apt-get install screen -y >/dev/null 2>&1
+
     if [[ ! -x "/bin/badvpn-udpgw" ]]; then
         if [[ -f "$HOME/SSHPLUS-master/Install/badvpn-udpgw" ]]; then
             cp -f "$HOME/SSHPLUS-master/Install/badvpn-udpgw" /bin/badvpn-udpgw
-            chmod +x /bin/badvpn-udpgw
+        elif [[ -f "$HOME/SSHPLUS-master/Modulos/badvpn-udpgw" ]]; then
+            cp -f "$HOME/SSHPLUS-master/Modulos/badvpn-udpgw" /bin/badvpn-udpgw
         elif [[ -f "/usr/local/lib/badvpn-udpgw" ]]; then
             cp -f "/usr/local/lib/badvpn-udpgw" /bin/badvpn-udpgw
-            chmod +x /bin/badvpn-udpgw
+        else
+            wget -qO /bin/badvpn-udpgw "https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master/Install/badvpn-udpgw" || \
+            curl -sSL -o /bin/badvpn-udpgw "https://raw.githubusercontent.com/koquebr/OverSSH-Plus/master/Install/badvpn-udpgw"
         fi
+        chmod +x /bin/badvpn-udpgw >/dev/null 2>&1
+        cp -f /bin/badvpn-udpgw /usr/bin/badvpn-udpgw >/dev/null 2>&1
+        chmod +x /usr/bin/badvpn-udpgw >/dev/null 2>&1
     fi
 }
 
@@ -63,15 +71,24 @@ start_badvpn() {
     [[ -z "$udpport" ]] && udpport=7300
 
     fun_start_proc() {
-        pkill -f "badvpn-udpgw.*$udpport" >/dev/null 2>&1
+        pkill -9 -f "badvpn-udpgw" >/dev/null 2>&1
+        pkill -9 -f "udpvpn" >/dev/null 2>&1
         screen -r -S "udpvpn" -X quit >/dev/null 2>&1
         screen -wipe >/dev/null 2>&1
         sleep 1
-        screen -dmS udpvpn /bin/badvpn-udpgw --listen-addr 127.0.0.1:$udpport --max-clients 1000 --max-connections-for-client 10 --client-socket-sndbuf 10000
+        screen -dmS udpvpn /bin/badvpn-udpgw --listen-addr 127.0.0.1:$udpport --max-clients 1000 --max-connections-for-client 10
+        
+        sleep 1
+        if ! pgrep -f "badvpn" >/dev/null 2>&1 && ! pgrep -f "udpvpn" >/dev/null 2>&1; then
+            nohup /bin/badvpn-udpgw --listen-addr 127.0.0.1:$udpport --max-clients 1000 --max-connections-for-client 10 >/dev/null 2>&1 &
+        fi
+
+        [[ -f "/usr/sbin/ufw" ]] && ufw allow $udpport/udp >/dev/null 2>&1
+        iptables -I INPUT -p udp --dport $udpport -j ACCEPT 2>/dev/null
         
         sed -i '/badvpn-udpgw/d' /etc/autostart 2>/dev/null
         sed -i '/udpvpn/d' /etc/autostart 2>/dev/null
-        echo "screen -dmS udpvpn /bin/badvpn-udpgw --listen-addr 127.0.0.1:$udpport --max-clients 1000 --max-connections-for-client 10 --client-socket-sndbuf 10000" >> /etc/autostart
+        echo "pgrep -f 'badvpn' >/dev/null || pgrep -f 'udpvpn' >/dev/null || screen -dmS udpvpn /bin/badvpn-udpgw --listen-addr 127.0.0.1:$udpport --max-clients 1000 --max-connections-for-client 10" >> /etc/autostart
     }
 
     echo -e "\n${C_CYAN}[+] Iniciando BadVPN UDPGW na porta $udpport...${C_RESET}"
@@ -89,7 +106,8 @@ stop_badvpn() {
     echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}\n"
 
     fun_stop_proc() {
-        pkill -f "badvpn-udpgw" >/dev/null 2>&1
+        pkill -9 -f "badvpn-udpgw" >/dev/null 2>&1
+        pkill -9 -f "udpvpn" >/dev/null 2>&1
         screen -r -S "udpvpn" -X quit >/dev/null 2>&1
         screen -wipe >/dev/null 2>&1
         sed -i '/badvpn-udpgw/d' /etc/autostart 2>/dev/null
@@ -105,8 +123,8 @@ stop_badvpn() {
 
 while true; do
     clear
-    status_bad=$(pgrep -f "badvpn-udpgw" >/dev/null && echo -e "${C_GREEN}● ATIVADO [ON]${C_RESET}" || echo -e "${C_RED}○ DESATIVADO [OFF]${C_RESET}")
-    porta_bad=$(ps aux | grep badvpn-udpgw | grep -v grep | grep -o -- '--listen-addr [^ ]*' | cut -d: -f2 | xargs || echo "7300")
+    status_bad=$( (pgrep -f "badvpn" >/dev/null 2>&1 || pgrep -f "udpvpn" >/dev/null 2>&1 || ps aux 2>/dev/null | grep -v grep | grep -qE 'badvpn|udpvpn') && echo -e "${C_GREEN}● ATIVADO [ON]${C_RESET}" || echo -e "${C_RED}○ DESATIVADO [OFF]${C_RESET}")
+    porta_bad=$( (ps aux 2>/dev/null | grep -E 'badvpn|udpvpn' | grep -v grep | grep -o -- '--listen-addr [^ ]*' | cut -d: -f2 | head -n1 | xargs) || echo "7300")
     [[ -z "$porta_bad" ]] && porta_bad="7300"
 
     echo -e "${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"

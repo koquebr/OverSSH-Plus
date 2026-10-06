@@ -57,7 +57,7 @@ while true; do
 
     # Status dos Serviços
     sts_limiter=$(pgrep -f "limiter\|droplimiter" >/dev/null && echo -e "\033[1;32m● ON\033[0m" || echo -e "\033[1;31m○ OFF\033[0m")
-    sts_badvpn=$(pgrep -f "badvpn-udpgw" >/dev/null && echo -e "\033[1;32m● ON\033[0m" || echo -e "\033[1;31m○ OFF\033[0m")
+    sts_badvpn=$( (pgrep -f "badvpn" >/dev/null 2>&1 || pgrep -f "udpvpn" >/dev/null 2>&1 || ps aux 2>/dev/null | grep -v grep | grep -qE 'badvpn|udpvpn') && echo -e "\033[1;32m● ON\033[0m" || echo -e "\033[1;31m○ OFF\033[0m")
     sts_app=$(pgrep -f "onlineapp" >/dev/null && echo -e "\033[1;32m● ON\033[0m" || echo -e "\033[1;31m○ OFF\033[0m")
     sts_check=$(pgrep -f "chks" >/dev/null && echo -e "\033[1;32m● ON\033[0m" || echo -e "\033[1;31m○ OFF\033[0m")
 

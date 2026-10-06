@@ -17,35 +17,40 @@ fun_prog ()
 	tput cnorm
 	echo -e "\e[1DOK"
 }
-echo -ne "\033[1;33mREINICIANDO OPENSSH "; fun_prog 'service ssh restart'
+echo -ne "\033[1;33mREINICIANDO OPENSSH "; fun_prog 'systemctl restart ssh || service ssh restart'
 echo ""
 sleep 1
 if [[ -e /etc/squid/squid.conf ]]; then
-echo -ne "\033[1;33mREINICIANDO SQUID PROXY "; fun_prog 'service squid restart'
+echo -ne "\033[1;33mREINICIANDO SQUID PROXY "; fun_prog 'systemctl restart squid || service squid restart || /etc/init.d/squid restart'
 echo ""
 sleep 1
 elif [[ -e /etc/squid3/squid.conf ]]; then
-echo -ne "\033[1;33mREINICIANDO SQUID PROXY "; fun_prog 'service squid3 restart'
+echo -ne "\033[1;33mREINICIANDO SQUID PROXY "; fun_prog 'systemctl restart squid3 || service squid3 restart || /etc/init.d/squid3 restart'
 echo ""
 sleep 1
 fi
 if [[ -e /etc/stunnel/stunnel.conf ]]; then
-echo -ne "\033[1;33mREINICIANDO SSL TUNNEL "; fun_prog 'service stunnel4 restart'
+echo -ne "\033[1;33mREINICIANDO SSL TUNNEL "; fun_prog 'systemctl restart stunnel4 || service stunnel4 restart'
 echo ""
 sleep 1
 fi
-if [[ -e /etc/init.d/dropbear ]]; then
-echo -ne "\033[1;33mREINICIANDO DROPBEAR "; fun_prog 'service dropbear restart'
+if [[ -e /etc/init.d/dropbear || -f /etc/default/dropbear ]]; then
+echo -ne "\033[1;33mREINICIANDO DROPBEAR "; fun_prog 'systemctl restart dropbear || service dropbear restart || /etc/init.d/dropbear restart'
 echo ""
 sleep 1
 fi
 if [[ -e /etc/openvpn/server.conf ]]; then
-echo -ne "\033[1;33mREINICIANDO OPENVPN "; fun_prog 'service openvpn restart'
+echo -ne "\033[1;33mREINICIANDO OPENVPN "; fun_prog 'systemctl restart openvpn || service openvpn restart'
 echo ""
 sleep 1
 fi
-if netstat -nltp|grep 'apache2' > /dev/null; then
-echo -ne "\033[1;33mREINICIANDO APACHE2 "; fun_prog '/etc/init.d/apache2 restart'
+if (netstat -nltp 2>/dev/null || ss -nltp 2>/dev/null) | grep 'apache2' > /dev/null 2>&1; then
+echo -ne "\033[1;33mREINICIANDO APACHE2 "; fun_prog 'systemctl restart apache2 || service apache2 restart || /etc/init.d/apache2 restart'
+echo ""
+sleep 1
+fi
+if (pgrep -f "badvpn" >/dev/null 2>&1 || pgrep -f "udpvpn" >/dev/null 2>&1 || grep -q "badvpn" /etc/autostart 2>/dev/null); then
+echo -ne "\033[1;33mREINICIANDO BADVPN UDPGW "; fun_prog 'pkill -9 -f "badvpn-udpgw" >/dev/null 2>&1; screen -wipe >/dev/null 2>&1; screen -dmS udpvpn /bin/badvpn-udpgw --listen-addr 127.0.0.1:7300 --max-clients 1000 --max-connections-for-client 10'
 echo ""
 sleep 1
 fi

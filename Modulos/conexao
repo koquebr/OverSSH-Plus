@@ -69,26 +69,24 @@ true && {
 	}
 
 	inst_sqd() {
-		if netstat -nltp | grep 'squid' 1>/dev/null 2>/dev/null; then
+		if (netstat -nltp 2>/dev/null || ss -nltp 2>/dev/null) | grep -i 'squid' >/dev/null 2>&1 || [[ -f /etc/squid/squid.conf || -f /etc/squid3/squid.conf ]]; then
 			echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n\033[1;36m                   >>> REMOVER SQUID PROXY <<<                   \033[0m\n\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
 			echo ""
 			echo -ne "\033[1;32mREALMENTE DESEJA REMOVER O SQUID \033[1;31m? \033[1;33m[s/n]:\033[1;37m "
 			read resp
-			[[ "$resp" = 's' ]] && {
+			[[ "$resp" = 's' || "$resp" = 'S' ]] && {
 				echo -e "\n\033[1;32mREMOVENDO O SQUID PROXY !\033[0m"
 				echo ""
 				rem_sqd() {
-					[[ -d "/etc/squid" ]] && {
-						apt-get remove squid -y >/dev/null 2>&1
-						apt-get purge squid -y >/dev/null 2>&1
-						rm -rf /etc/squid >/dev/null 2>&1
-					}
-					[[ -d "/etc/squid3" ]] && {
-						apt-get remove squid3 -y >/dev/null 2>&1
-						apt-get purge squid3 -y >/dev/null 2>&1
-						rm -rf /etc/squid3 >/dev/null 2>&1
-						apt autoremove -y >/dev/null 2>&1
-					}
+					systemctl stop squid >/dev/null 2>&1
+					systemctl stop squid3 >/dev/null 2>&1
+					systemctl disable squid >/dev/null 2>&1
+					systemctl disable squid3 >/dev/null 2>&1
+					service squid stop >/dev/null 2>&1
+					service squid3 stop >/dev/null 2>&1
+					apt-get remove --purge squid squid3 squid-common squid-langpack -y >/dev/null 2>&1
+					rm -rf /etc/squid /etc/squid3 /var/log/squid /var/log/squid3 /var/spool/squid /var/spool/squid3 >/dev/null 2>&1
+					apt autoremove -y >/dev/null 2>&1
 				}
 				fun_bar 'rem_sqd'
 				echo -e "\n\033[1;32mSQUID REMOVIDO COM SUCESSO !\033[0m"
@@ -105,104 +103,77 @@ true && {
 			clear
 			echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n\033[1;36m                   >>> INSTALADOR SQUID <<<                   \033[0m\n\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
 			echo ""
-			IP=$(wget -qO- ipv4.icanhazip.com)
+			IP=$(cat /etc/IP 2>/dev/null || wget -qO- ipv4.icanhazip.com 2>/dev/null || curl -s4 ifconfig.me 2>/dev/null || echo "127.0.0.1")
 			echo -ne "\033[1;32mPARA CONTINUAR CONFIRME SEU IP: \033[1;37m"
-			read -e -i $IP ipdovps
-			[[ -z "$ipdovps" ]] && {
-				echo -e "\n\033[1;31mIP invalido\033[1;32m"
-				echo ""
-				read -p "Digite seu IP: " IP
-			}
-			echo -e "\n\033[1;33mQUAIS PORTAS DESEJA ULTILIZAR NO SQUID \033[1;31m?"
+			read -e -i "$IP" ipdovps
+			[[ -z "$ipdovps" ]] && ipdovps="$IP"
+			echo -e "\n\033[1;33mQUAIS PORTAS DESEJA UTILIZAR NO SQUID \033[1;31m?"
 			echo -e "\n\033[1;33m[\033[1;31m!\033[1;33m] \033[1;32mDEFINA AS PORTAS EM SEQUENCIA \033[1;33mEX: \033[1;37m80 8080"
 			echo ""
 			echo -ne "\033[1;32mINFORME AS PORTAS\033[1;37m: "
 			read portass
 			[[ -z "$portass" ]] && {
 				echo -e "\n\033[1;31mPorta invalida!"
-				sleep 3
+				sleep 2
 				fun_conexao
 			}
 			for porta in $(echo -e $portass); do
 				verif_ptrs $porta
 			done
-			[[ $(grep -wc '14' /etc/issue.net) != '0' ]] || [[ $(grep -wc '8' /etc/issue.net) != '0' ]] && {
-				echo -e "\n\033[1;32mINSTALANDO SQUID PROXY\033[0m\n"
-				fun_bar 'apt update -y' "apt install squid3 -y"
-			} || {
-				echo -e "\n\033[1;31m[\033[1;36m1\033[1;31m] \033[1;37m• \033[1;33mSQUID VERSAO 3.3.X\n\033[1;31m[\033[1;36m2\033[1;31m] \033[1;37m• \033[1;33mSQUID VERSAO 3.5.X\033[0m\n"
-				read -p "$(echo -e "\033[1;32mINFORME UMA OPÇÃO \033[1;37m: ")" -e -i 1 opc
-				[[ -z "$opc" ]] && {
-					echo -e "\n\033[1;31mOpcao invalida!"
-					sleep 2
-					fun_conexao
-				}
-				[[ "$opc" != '1' ]] && {
-					[[ "$opc" != '2' ]] && {
-						echo -e "\n\033[1;31mOpcao invalida !"
-						sleep 2
-						fun_conexao
-					}
-				}
-				echo -e "\n\033[1;32mINSTALANDO SQUID PROXY\033[0m\n"
-				fun_bar 'apt update -y' "instsqd $opc"
-			}
-			if [[ -d "/etc/squid/" ]]; then
+			echo -e "\n\033[1;32mINSTALANDO SQUID PROXY\033[0m\n"
+			fun_bar 'instsqd'
+			if [[ -d "/etc/squid" ]]; then
 				var_sqd="/etc/squid/squid.conf"
 				var_pay="/etc/squid/payload.txt"
-			elif [[ -d "/etc/squid3/" ]]; then
+			elif [[ -d "/etc/squid3" ]]; then
 				var_sqd="/etc/squid3/squid.conf"
 				var_pay="/etc/squid3/payload.txt"
 			else
-				echo -e "\n\033[1;33m[\033[1;31mERRO\033[1;33m]\033[1;37m: \033[1;33mO SQUID PROXY CORROMPEU\033[0m"
-				sleep 2
-				fun_conexao
+				mkdir -p /etc/squid
+				var_sqd="/etc/squid/squid.conf"
+				var_pay="/etc/squid/payload.txt"
 			fi
 			cat <<-EOF >$var_pay
-				.whatsapp.net/
-				.facebook.net/
-				.twitter.com/
-				.speedtest.net/
-			EOF
+.whatsapp.net/
+.facebook.net/
+.twitter.com/
+.speedtest.net/
+EOF
 			cat <<-EOF >$var_sqd
-				acl url1 dstdomain -i 127.0.0.1
-				acl url2 dstdomain -i localhost
-				acl url3 dstdomain -i $ipdovps
-				acl url4 dstdomain -i /SSHPLUS?
-				acl payload url_regex -i "$var_pay"
-				acl all src 0.0.0.0/0
+acl url1 dstdomain -i 127.0.0.1
+acl url2 dstdomain -i localhost
+acl url3 dstdomain -i $ipdovps
+acl url4 urlpath_regex -i /SSHPLUS
+acl payload url_regex -i "$var_pay"
 
-				http_access allow url1
-				http_access allow url2
-				http_access allow url3
-				http_access allow url4
-				http_access allow payload
-				http_access deny all
-				 
-				#Portas
-			EOF
+http_access allow url1
+http_access allow url2
+http_access allow url3
+http_access allow url4
+http_access allow payload
+http_access deny all
+
+#Portas
+EOF
 			for Pts in $(echo -e $portass); do
 				echo -e "http_port $Pts" >>$var_sqd
-				[[ -f "/usr/sbin/ufw" ]] && ufw allow $Pts/tcp
+				[[ -f "/usr/sbin/ufw" ]] && ufw allow $Pts/tcp >/dev/null 2>&1
+				iptables -I INPUT -p tcp --dport $Pts -j ACCEPT 2>/dev/null
 			done
 			cat <<-EOF >>$var_sqd
-				#Nome squid
-				visible_hostname SSHPLUS 
-				via off
-				forwarded_for off
-				pipeline_prefetch off
-			EOF
+
+#Nome squid
+visible_hostname SSHPLUS
+via off
+forwarded_for off
+EOF
 			sqd_conf() {
-				[[ -d "/etc/squid/" ]] && {
-					service ssh restart
-					/etc/init.d/squid restart
-					service squid restart
-				}
-				[[ -d "/etc/squid3/" ]] && {
-					service ssh restart
-					/etc/init.d/squid3 restart
-					service squid3 restart
-				}
+				mkdir -p /var/log/squid /var/spool/squid /var/run/squid /var/run/squid3 2>/dev/null
+				chown -R proxy:proxy /var/log/squid /var/spool/squid /var/run/squid /var/run/squid3 2>/dev/null || chown -R squid:squid /var/log/squid /var/spool/squid 2>/dev/null
+				squid -z >/dev/null 2>&1 || squid3 -z >/dev/null 2>&1
+				systemctl unmask squid squid3 >/dev/null 2>&1
+				systemctl enable squid >/dev/null 2>&1 || systemctl enable squid3 >/dev/null 2>&1
+				systemctl restart squid >/dev/null 2>&1 || systemctl restart squid3 >/dev/null 2>&1 || service squid restart >/dev/null 2>&1 || service squid3 restart >/dev/null 2>&1 || /etc/init.d/squid restart >/dev/null 2>&1 || /etc/init.d/squid3 restart >/dev/null 2>&1
 			}
 			echo -e "\n\033[1;32mCONFIGURANDO SQUID PROXY\033[0m"
 			echo ""
@@ -215,7 +186,6 @@ true && {
 
 	addpt_sqd() {
 		echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n\033[1;36m                   >>> ADICIONAR PORTA AO SQUID <<<                   \033[0m\n\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-		echo -e "\n\033[1;33mPORTAS EM USO: \033[1;32m$sqdp\n"
 		if [[ -f "/etc/squid/squid.conf" ]]; then
 			var_sqd="/etc/squid/squid.conf"
 		elif [[ -f "/etc/squid3/squid.conf" ]]; then
@@ -227,6 +197,9 @@ true && {
 			clear
 			fun_squid
 		fi
+		sqdp=$( (netstat -nplt 2>/dev/null || ss -nplt 2>/dev/null) | grep -i 'squid' | awk '{print $4}' | awk -F: '{print $NF}' | grep -E '^[0-9]+$' | sort -nu | xargs )
+		[[ -z "$sqdp" ]] && sqdp=$(grep -E '^http_port' "$var_sqd" 2>/dev/null | awk '{print $2}' | awk -F: '{print $NF}' | sort -nu | xargs)
+		echo -e "\n\033[1;33mPORTAS EM USO: \033[1;32m$sqdp\n"
 		echo -ne "\033[1;32mQUAL PORTA DESEJA ADICIONAR \033[1;33m?\033[1;37m "
 		read pt
 		[[ -z "$pt" ]] && {
@@ -238,20 +211,28 @@ true && {
 		verif_ptrs $pt
 		echo -e "\n\033[1;32mADICIONANDO PORTA AO SQUID!"
 		echo ""
-		sed -i "s/#Portas/#Portas\nhttp_port $pt/g" $var_sqd
-		fun_bar 'sleep 2'
+		if grep -q "#Portas" "$var_sqd"; then
+			sed -i "s/#Portas/#Portas\nhttp_port $pt/g" "$var_sqd"
+		else
+			echo "http_port $pt" >> "$var_sqd"
+		fi
+		[[ -f "/usr/sbin/ufw" ]] && ufw allow $pt/tcp >/dev/null 2>&1
+		iptables -I INPUT -p tcp --dport $pt -j ACCEPT 2>/dev/null
+		fun_bar 'sleep 1'
 		echo -e "\n\033[1;32mREINICIANDO O SQUID!"
 		echo ""
-		fun_bar 'service squid restart' 'service squid3 restart'
+		sqd_restart() {
+			systemctl restart squid >/dev/null 2>&1 || systemctl restart squid3 >/dev/null 2>&1 || service squid restart >/dev/null 2>&1 || service squid3 restart >/dev/null 2>&1 || /etc/init.d/squid restart >/dev/null 2>&1 || /etc/init.d/squid3 restart >/dev/null 2>&1
+		}
+		fun_bar 'sqd_restart'
 		echo -e "\n\033[1;32mPORTA ADICIONADA COM SUCESSO!"
-		sleep 3
+		sleep 2
 		clear
 		fun_squid
 	}
 
 	rempt_sqd() {
 		echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n\033[1;36m                   >>> REMOVER PORTA DO SQUID <<<                   \033[0m\n\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-		echo -e "\n\033[1;33mPORTAS EM USO: \033[1;32m$sqdp\n"
 		if [[ -f "/etc/squid/squid.conf" ]]; then
 			var_sqd="/etc/squid/squid.conf"
 		elif [[ -f "/etc/squid3/squid.conf" ]]; then
@@ -263,6 +244,9 @@ true && {
 			clear
 			fun_squid
 		fi
+		sqdp=$( (netstat -nplt 2>/dev/null || ss -nplt 2>/dev/null) | grep -i 'squid' | awk '{print $4}' | awk -F: '{print $NF}' | grep -E '^[0-9]+$' | sort -nu | xargs )
+		[[ -z "$sqdp" ]] && sqdp=$(grep -E '^http_port' "$var_sqd" 2>/dev/null | awk '{print $2}' | awk -F: '{print $NF}' | sort -nu | xargs)
+		echo -e "\n\033[1;33mPORTAS EM USO: \033[1;32m$sqdp\n"
 		echo -ne "\033[1;32mQUAL PORTA DESEJA REMOVER \033[1;33m?\033[1;37m "
 		read pt
 		[[ -z "$pt" ]] && {
@@ -271,36 +255,49 @@ true && {
 			clear
 			fun_conexao
 		}
-		if grep -E "$pt" $var_sqd >/dev/null 2>&1; then
+		if grep -E "http_port\s+$pt\b|http_port\s+.*:$pt\b" "$var_sqd" >/dev/null 2>&1; then
 			echo -e "\n\033[1;32mREMOVENDO PORTA DO SQUID!"
 			echo ""
-			sed -i "/http_port $pt/d" $var_sqd
-			fun_bar 'sleep 3'
+			sed -i -E "/http_port.*[ :]$pt(\b|$)/d" "$var_sqd"
+			fun_bar 'sleep 1'
 			echo -e "\n\033[1;32mREINICIANDO O SQUID!"
 			echo ""
-			fun_bar 'service squid restart' 'service squid3 restart'
+			sqd_restart() {
+				systemctl restart squid >/dev/null 2>&1 || systemctl restart squid3 >/dev/null 2>&1 || service squid restart >/dev/null 2>&1 || service squid3 restart >/dev/null 2>&1 || /etc/init.d/squid restart >/dev/null 2>&1 || /etc/init.d/squid3 restart >/dev/null 2>&1
+			}
+			fun_bar 'sqd_restart'
 			echo -e "\n\033[1;32mPORTA REMOVIDA COM SUCESSO!"
-			sleep 3.5s
+			sleep 2
 			clear
 			fun_squid
 		else
 			echo -e "\n\033[1;31mPORTA \033[1;32m$pt \033[1;31mNAO ENCONTRADA!"
-			sleep 3.5s
+			sleep 2
 			clear
 			fun_squid
 		fi
 	}
 
 	fun_squid() {
-		[[ "$(netstat -nplt | grep -c 'squid')" = "0" ]] && inst_sqd
+		if ! (netstat -nplt 2>/dev/null || ss -nplt 2>/dev/null) | grep -i 'squid' >/dev/null 2>&1 && [[ ! -f /etc/squid/squid.conf && ! -f /etc/squid3/squid.conf ]]; then
+			inst_sqd
+		fi
 		echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n\033[1;36m                   >>> GERENCIAR SQUID PROXY <<<                   \033[0m\n\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-		[[ "$(netstat -nplt | grep -c 'squid')" != "0" ]] && {
-			sqdp=$(netstat -nplt | grep 'squid' | awk -F ":" {'print $4'} | xargs)
+		sqdp=$( (netstat -nplt 2>/dev/null || ss -nplt 2>/dev/null) | grep -i 'squid' | awk '{print $4}' | awk -F: '{print $NF}' | grep -E '^[0-9]+$' | sort -nu | xargs )
+		if [[ -z "$sqdp" ]]; then
+			if [[ -f /etc/squid/squid.conf ]]; then
+				sqdp=$(grep -E '^http_port' /etc/squid/squid.conf 2>/dev/null | awk '{print $2}' | awk -F: '{print $NF}' | sort -nu | xargs)
+			elif [[ -f /etc/squid3/squid.conf ]]; then
+				sqdp=$(grep -E '^http_port' /etc/squid3/squid.conf 2>/dev/null | awk '{print $2}' | awk -F: '{print $NF}' | sort -nu | xargs)
+			fi
+		fi
+		if (netstat -nplt 2>/dev/null || ss -nplt 2>/dev/null) | grep -i 'squid' >/dev/null 2>&1 || [[ -f /etc/squid/squid.conf || -f /etc/squid3/squid.conf ]]; then
+			[[ -z "$sqdp" ]] && sqdp="Ativo"
 			echo -e "\n\033[1;33mPORTAS\033[1;37m: \033[1;32m$sqdp"
 			VarSqdOn="REMOVER SQUID PROXY"
-		} || {
+		else
 			VarSqdOn="INSTALAR SQUID PROXY"
-		}
+		fi
 		echo -e "\n\033[1;31m[\033[1;36m1\033[1;31m] \033[1;37m• \033[1;33m$VarSqdOn \033[1;31m
 [\033[1;36m2\033[1;31m] \033[1;37m• \033[1;33mADICIONAR PORTA \033[1;31m
 [\033[1;36m3\033[1;31m] \033[1;37m• \033[1;33mREMOVER PORTA\033[1;31m
@@ -2070,9 +2067,12 @@ exit 0' >$RCLOCAL
 			fi
 
 			# Squid Proxy (Top 4)
-			if netstat -nplt 2>/dev/null | grep -i 'squid' >/dev/null 2>&1; then
-				pt_sq=$(netstat -nplt 2>/dev/null | grep -i 'squid' | awk '{print $4}' | cut -d: -f2 | sort -nu | xargs)
-				echo -e "  ${C_GREEN}SERVIÇO:${C_RESET} ${C_YELLOW}SQUID PROXY${C_RESET}    ${C_GREEN}PORTA:${C_RESET} ${C_CYAN}${pt_sq}${C_RESET}"
+			sq_ports=$( (netstat -nplt 2>/dev/null || ss -nplt 2>/dev/null) | grep -i 'squid' | awk '{print $4}' | awk -F: '{print $NF}' | grep -E '^[0-9]+$' | sort -nu | xargs )
+			if (netstat -nplt 2>/dev/null || ss -nplt 2>/dev/null) | grep -i 'squid' >/dev/null 2>&1 || pgrep -x "squid" >/dev/null 2>&1 || pgrep -x "squid3" >/dev/null 2>&1 || systemctl is-active --quiet squid 2>/dev/null || systemctl is-active --quiet squid3 2>/dev/null; then
+				[[ -z "$sq_ports" && -f "/etc/squid/squid.conf" ]] && sq_ports=$(grep -E '^http_port' /etc/squid/squid.conf 2>/dev/null | awk '{print $2}' | awk -F: '{print $NF}' | sort -nu | xargs)
+				[[ -z "$sq_ports" && -f "/etc/squid3/squid.conf" ]] && sq_ports=$(grep -E '^http_port' /etc/squid3/squid.conf 2>/dev/null | awk '{print $2}' | awk -F: '{print $NF}' | sort -nu | xargs)
+				[[ -z "$sq_ports" ]] && sq_ports="Ativo"
+				echo -e "  ${C_GREEN}SERVIÇO:${C_RESET} ${C_YELLOW}SQUID PROXY${C_RESET}    ${C_GREEN}PORTA:${C_RESET} ${C_CYAN}${sq_ports}${C_RESET}"
 				sts_squid="${C_GREEN}● ON${C_RESET}"
 			else
 				sts_squid="${C_RED}○ OFF${C_RESET}"
